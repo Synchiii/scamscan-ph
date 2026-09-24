@@ -1,27 +1,36 @@
 function emailConfigured() {
-  return Boolean(process.env.SMTP_PASS);
+  return Boolean(process.env.BREVO_API_KEY && process.env.EMAIL_FROM);
+}
+
+function sender() {
+  const value = process.env.EMAIL_FROM.trim();
+  const match = value.match(/^(?:\s*(.*?)\s*<)?([^<>@\s]+@[^<>@\s]+)>?\s*$/);
+  return {
+    email: match ? match[2] : value,
+    name: match?.[1]?.trim() || 'SCAMSCAN PH',
+  };
 }
 
 async function sendEmail({ to, subject, text }) {
   if (!emailConfigured()) return false;
 
-  const response = await fetch('https://api.resend.com/emails', {
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.SMTP_PASS}`,
+      'api-key': process.env.BREVO_API_KEY,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: process.env.EMAIL_FROM || 'ScamScan <onboarding@resend.dev>',
-      to: [to],
+      sender: sender(),
+      to: [{ email: to }],
       subject,
-      text,
+      textContent: text,
     }),
   });
 
   if (!response.ok) {
     const details = await response.text();
-    throw new Error(`Resend email request failed (${response.status}): ${details}`);
+    throw new Error(`Brevo email request failed (${response.status}): ${details}`);
   }
 
   return true;
