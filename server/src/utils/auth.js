@@ -14,17 +14,21 @@ export function signSession(user) {
 export function verifySession(token) { return jwt.verify(token, secret()); }
 
 export function setSessionCookie(res, user) {
+  const production = process.env.NODE_ENV === 'production';
   res.cookie(COOKIE_NAME, signSession(user), {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    // The Vercel client and Render API are different sites in production.
+    // Cross-site API requests need an explicit secure cookie policy.
+    sameSite: production ? 'none' : 'lax',
+    secure: production,
     maxAge: 7 * 24 * 60 * 60 * 1000,
     path: '/',
   });
 }
 
 export function clearSessionCookie(res) {
-  res.clearCookie(COOKIE_NAME, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' });
+  const production = process.env.NODE_ENV === 'production';
+  res.clearCookie(COOKIE_NAME, { httpOnly: true, sameSite: production ? 'none' : 'lax', secure: production, path: '/' });
 }
 
 export { COOKIE_NAME };
