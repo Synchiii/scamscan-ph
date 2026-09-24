@@ -11,6 +11,8 @@ import supportRoutes from './routes/supportRoutes.js';
 
 const app = express();
 const allowedOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+// Render adds X-Forwarded-For before requests reach this service.
+app.set('trust proxy', 1);
 app.use(cors({ origin: allowedOrigin, credentials: true }));
 app.disable('x-powered-by');
 app.use((_req, res, next) => {
