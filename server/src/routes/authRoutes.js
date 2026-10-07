@@ -9,10 +9,11 @@ import { clearSessionCookie, setSessionCookie } from '../utils/auth.js';
 import { sendOtpEmail, emailConfigured } from '../services/emailService.js';
 import { recordAudit } from '../services/auditService.js';
 import { validEmail, validPassword, validOtp, passwordHelp } from '../utils/validation.js';
+import SiteSettings from '../models/SiteSettings.js';
 
 const router = Router();
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false, message: { message: 'Too many attempts. Please wait 15 minutes and try again.' } });
-const publicUser = (user) => ({ id: user._id, name: user.name, email: user.email, role: user.role, isGuest: user.isGuest, preferences: user.preferences, createdAt: user.createdAt });
+const publicUser = (user) => ({ id: user._id, name: user.name, email: user.email, role: user.role, preferences: user.preferences, createdAt: user.createdAt });
 const codeHash = (code) => crypto.createHash('sha256').update(code).digest('hex');
 const makeCode = () => String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 
@@ -86,8 +87,8 @@ router.post('/verify-email', authLimiter, async (req, res, next) => {
       await recordAudit(req, 'user.registered', { targetType: 'user', targetId: user._id });
     } else {
       // Complete registrations started before the pending-registration workflow was introduced.
-      user = await User.findOne({ email }).select('+verificationCodeHash +verificationCodeExpires');
-      if (!user || user.isGuest || user.emailVerified || user.verificationCodeHash !== codeHash(code) || !user.verificationCodeExpires || user.verificationCodeExpires <= new Date()) return res.status(400).json({ message: 'That verification code is invalid or expired.' });
+      user = await User.findOne({ email, isGuest: { $ne: true } }).select('+verificationCodeHash +verificationCodeExpires');
+      if (!user || user.emailVerified || user.verificationCodeHash !== codeHash(code) || !user.verificationCodeExpires || user.verificationCodeExpires <= new Date()) return res.status(400).json({ message: 'That verification code is invalid or expired.' });
       user.emailVerified = true;
       user.verificationCodeHash = undefined;
       user.verificationCodeExpires = undefined;
@@ -95,8 +96,8 @@ router.post('/verify-email', authLimiter, async (req, res, next) => {
     }
     req.user = user;
     await recordAudit(req, 'user.email_verified', { targetType: 'user', targetId: user._id });
-    setSessionCookie(res, user);
-    return res.json({ user: publicUser(user) });
+    const sessionExpiresAt = setSessionCookie(res, user);
+    return res.json({ user: publicUser(user), sessionExpiresAt });
   } catch (error) { next(error); }
 });
 
@@ -117,8 +118,8 @@ router.post('/resend-verification', authLimiter, async (req, res, next) => {
       await sendOtpEmail({ to: pending.email, name: pending.name, code, purpose: 'verify' });
       return res.json(devCode(body, code));
     }
-    const user = await User.findOne({ email }).select('+verificationCodeHash +verificationCodeExpires');
-    if (!user || user.emailVerified || user.isGuest) return res.json(body);
+    const user = await User.findOne({ email, isGuest: { $ne: true } }).select('+verificationCodeHash +verificationCodeExpires');
+    if (!user || user.emailVerified) return res.json(body);
     return res.json(devCode(body, await sendCode(user, 'verify')));
   } catch (error) { next(error); }
 });
@@ -128,7 +129,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
     const email = String(req.body.email || '').trim().toLowerCase();
     const password = typeof req.body.password === 'string' ? req.body.password : '';
     if (!validEmail(email) || password.length > 128) return res.status(400).json({ message: 'Enter a valid email and password.' });
-    const user = await User.findOne({ email }).select('+passwordHash +failedLoginAttempts +loginLockedUntil');
+    const user = await User.findOne({ email, isGuest: { $ne: true } }).select('+passwordHash +failedLoginAttempts +loginLockedUntil');
     if (user?.loginLockedUntil && user.loginLockedUntil > new Date()) return lockResponse(res, user.loginLockedUntil);
     if (!user || !user.isActive || !(await bcrypt.compare(password, user.passwordHash))) {
       if (user?.isActive) {
@@ -142,22 +143,15 @@ router.post('/login', authLimiter, async (req, res, next) => {
       return res.status(401).json({ message: 'Incorrect email or password.' });
     }
     if (user.failedLoginAttempts || user.loginLockedUntil) await User.updateOne({ _id: user._id }, { $set: { failedLoginAttempts: 0 }, $unset: { loginLockedUntil: 1 } });
-    if (!user.emailVerified && !user.isGuest) return res.status(403).json({ message: 'Verify your email before signing in.', needsVerification: true, email: user.email });
-    setSessionCookie(res, user);
+    if (!user.emailVerified) return res.status(403).json({ message: 'Verify your email before signing in.', needsVerification: true, email: user.email });
+    const settings = await SiteSettings.findOne({ key: 'site' }).lean();
+    if (settings?.maintenanceEnabled && user.role !== 'admin') {
+      return res.status(503).json({ code: 'MAINTENANCE_MODE', message: settings.maintenanceMessage });
+    }
+    const sessionExpiresAt = setSessionCookie(res, user);
     req.user = user;
     await recordAudit(req, 'user.logged_in', { targetType: 'user', targetId: user._id });
-    return res.json({ user: publicUser(user) });
-  } catch (error) { next(error); }
-});
-
-router.post('/guest', authLimiter, async (req, res, next) => {
-  try {
-    const suffix = crypto.randomBytes(12).toString('hex');
-    const user = await User.create({ name: 'Guest', email: 'guest-' + suffix + '@guest.scamscan.local', passwordHash: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12), isGuest: true, emailVerified: true, preferences: { emailNotifications: false, scanTips: true } });
-    setSessionCookie(res, user);
-    req.user = user;
-    await recordAudit(req, 'guest.started', { targetType: 'user', targetId: user._id });
-    return res.status(201).json({ user: publicUser(user) });
+    return res.json({ user: publicUser(user), sessionExpiresAt });
   } catch (error) { next(error); }
 });
 
@@ -166,11 +160,10 @@ router.post('/logout', requireAuth, async (req, res) => {
   clearSessionCookie(res);
   res.status(204).end();
 });
-router.get('/me', requireAuth, (req, res) => res.json({ user: publicUser(req.user) }));
+router.get('/me', requireAuth, (req, res) => res.json({ user: publicUser(req.user), sessionExpiresAt: req.sessionExpiresAt }));
 
 router.patch('/profile', requireAuth, async (req, res, next) => {
   try {
-    if (req.user.isGuest) return res.status(403).json({ message: 'Guest accounts cannot edit a profile.' });
     const name = String(req.body.name || '').trim();
     if (name.length < 2 || name.length > 80) return res.status(400).json({ message: 'Enter a name between 2 and 80 characters.' });
     req.user.name = name;
@@ -182,7 +175,6 @@ router.patch('/profile', requireAuth, async (req, res, next) => {
 
 router.patch('/preferences', requireAuth, async (req, res, next) => {
   try {
-    if (req.user.isGuest) return res.status(403).json({ message: 'Guest accounts cannot edit settings.' });
     const preferences = req.body.preferences || {};
     if (typeof preferences.emailNotifications !== 'boolean' || typeof preferences.scanTips !== 'boolean') return res.status(400).json({ message: 'Preferences must be true or false.' });
     req.user.preferences = preferences;
@@ -194,7 +186,6 @@ router.patch('/preferences', requireAuth, async (req, res, next) => {
 
 router.post('/change-password', requireAuth, authLimiter, async (req, res, next) => {
   try {
-    if (req.user.isGuest) return res.status(403).json({ message: 'Guest accounts cannot change passwords.' });
     const user = await User.findById(req.user._id).select('+passwordHash');
     const currentPassword = typeof req.body.currentPassword === 'string' ? req.body.currentPassword : '';
     if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) return res.status(400).json({ message: 'Your current password is incorrect.' });
@@ -211,9 +202,9 @@ router.post('/forgot-password', authLimiter, async (req, res, next) => {
   try {
     if (process.env.NODE_ENV === 'production' && !emailConfigured()) return res.status(503).json({ message: 'Password reset email is temporarily unavailable.' });
     const email = String(req.body.email || '').trim().toLowerCase();
-    const user = await User.findOne({ email }).select('+resetPasswordHash +resetPasswordExpires');
+    const user = await User.findOne({ email, isGuest: { $ne: true } }).select('+resetPasswordHash +resetPasswordExpires');
     const body = { message: 'If that address belongs to a verified account, a six-digit reset code has been sent.' };
-    if (!user || user.isGuest || !user.emailVerified) return res.json(body);
+    if (!user || !user.emailVerified) return res.json(body);
     const code = await sendCode(user, 'reset');
     req.user = user;
     await recordAudit(req, 'user.password_reset_requested', { targetType: 'user', targetId: user._id });
@@ -227,7 +218,7 @@ router.post('/reset-password', authLimiter, async (req, res, next) => {
     const code = String(req.body.code || '').trim();
     const password = req.body.password;
     if (!validPassword(password)) return res.status(400).json({ message: passwordHelp });
-    const user = await User.findOne({ email }).select('+resetPasswordHash +resetPasswordExpires +passwordHash');
+    const user = await User.findOne({ email, isGuest: { $ne: true } }).select('+resetPasswordHash +resetPasswordExpires +passwordHash');
     if (!user || user.resetPasswordHash !== codeHash(code) || !user.resetPasswordExpires || user.resetPasswordExpires <= new Date()) return res.status(400).json({ message: 'This reset code is invalid or expired.' });
     user.passwordHash = await bcrypt.hash(password, 12);
     user.resetPasswordHash = undefined;

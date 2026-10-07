@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "seed": "node src/seed.js",
     "create-admin": "node src/createAdmin.js",
+    "reset-password": "node src/resetPassword.js",
     "test": "node --test"
   },
   "dependencies": {

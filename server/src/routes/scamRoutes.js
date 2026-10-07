@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import MessageAnalysis from '../models/MessageAnalysis.js';
+import User from '../models/User.js';
+import { registeredAccounts } from '../utils/access.js';
 import { scoreScamMessage } from '../services/scamScorer.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { recordAudit } from '../services/auditService.js';
@@ -20,15 +22,14 @@ router.post('/analyze', requireAuth, async (req, res, next) => {
 
 router.get('/history', requireAuth, async (req, res, next) => {
   try {
-    const page = Math.max(1, Math.min(10000, Number.parseInt(req.query.page, 10) || 1));
     const limit = 10;
     const level = ['Safe', 'Warning', 'High', 'Scam'].includes(req.query.level) ? req.query.level : null;
     const query = { user: req.user._id, ...(level ? { level } : {}) };
-    const [analyses, total] = await Promise.all([
-      MessageAnalysis.find(query).select('message language score level flags signals explanation recommendation createdAt updatedAt').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
-      MessageAnalysis.countDocuments(query),
-    ]);
-    res.json({ analyses, total, page, pages: Math.max(1, Math.ceil(total / limit)) });
+    const total = await MessageAnalysis.countDocuments(query);
+    const pages = Math.max(1, Math.ceil(total / limit));
+    const page = Math.min(pages, Math.max(1, Number.parseInt(req.query.page, 10) || 1));
+    const analyses = await MessageAnalysis.find(query).select('message language score level flags signals explanation recommendation createdAt updatedAt').sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean();
+    res.json({ analyses, total, page, pages });
   } catch (error) { next(error); }
 });
 
@@ -43,19 +44,21 @@ router.delete('/history/:id', requireAuth, async (req, res, next) => {
 
 router.get('/analytics', requireAuth, requireAdmin, async (_req, res, next) => {
   try {
+    const visibleUsers = await User.distinct('_id', registeredAccounts);
+    const visible = { user: { $in: visibleUsers } };
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const [total, byLevel, byLanguage, average, highRisk, rawFlags, trend, byAccountType, reviewed] = await Promise.all([
-      MessageAnalysis.countDocuments(),
-      MessageAnalysis.aggregate([{ $group: { _id: '$level', count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
-      MessageAnalysis.aggregate([{ $group: { _id: '$language', count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
-      MessageAnalysis.aggregate([{ $group: { _id: null, value: { $avg: '$score' } } }]),
-      MessageAnalysis.countDocuments({ level: { $in: ['High', 'Scam'] } }),
-      MessageAnalysis.aggregate([{ $unwind: '$flags' }, { $group: { _id: '$flags', count: { $sum: 1 } } }, { $sort: { count: -1 } }, { $limit: 8 }]),
-      MessageAnalysis.aggregate([{ $match: { createdAt: { $gte: since } } }, { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } }, { $sort: { _id: 1 } }]),
-      MessageAnalysis.aggregate([{ $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: 'account' } }, { $unwind: { path: '$account', preserveNullAndEmptyArrays: true } }, { $group: { _id: { $cond: [{ $eq: ['$account.isGuest', true] }, 'Guest', 'Member'] }, count: { $sum: 1 } } }]),
-      MessageAnalysis.countDocuments({ 'adminReview.reviewedAt': { $exists: true } }),
+      MessageAnalysis.countDocuments(visible),
+      MessageAnalysis.aggregate([{ $match: visible }, { $group: { _id: '$level', count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
+      MessageAnalysis.aggregate([{ $match: visible }, { $group: { _id: '$language', count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
+      MessageAnalysis.aggregate([{ $match: visible }, { $group: { _id: null, value: { $avg: '$score' } } }]),
+      MessageAnalysis.countDocuments({ ...visible, level: { $in: ['High', 'Scam'] } }),
+      MessageAnalysis.aggregate([{ $match: visible }, { $unwind: '$flags' }, { $group: { _id: '$flags', count: { $sum: 1 } } }, { $sort: { count: -1 } }, { $limit: 8 }]),
+      MessageAnalysis.aggregate([{ $match: visible }, { $match: { createdAt: { $gte: since } } }, { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } }, { $sort: { _id: 1 } }]),
+      MessageAnalysis.aggregate([{ $match: visible }, { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: 'account' } }, { $unwind: { path: '$account', preserveNullAndEmptyArrays: true } }, { $group: { _id: { $ifNull: ['$account.role', 'user'] }, count: { $sum: 1 } } }]),
+      MessageAnalysis.countDocuments({ ...visible, 'adminReview.reviewedAt': { $exists: true } }),
     ]);
-    const scams = await MessageAnalysis.countDocuments({ level: 'Scam' });
+    const scams = await MessageAnalysis.countDocuments({ ...visible, level: 'Scam' });
     res.json({ total, scams, reviewed, averageScore: Math.round(average[0]?.value || 0), highRiskRate: total ? Math.round((highRisk / total) * 100) : 0, byLevel, byLanguage, commonFlags: rawFlags, trend, byAccountType });
   } catch (error) { next(error); }
 });

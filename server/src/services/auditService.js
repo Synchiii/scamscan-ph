@@ -6,7 +6,7 @@ export function recordAudit(req, action, { targetType = '', targetId = '', detai
     actor: user?._id,
     actorName: user?.name || 'System',
     actorEmail: user?.email || 'system@scamscan.local',
-    actorRole: user ? (user.isGuest ? 'guest' : user.role) : 'system',
+    actorRole: user?.role || 'system',
     action,
     targetType,
     targetId: String(targetId || ''),

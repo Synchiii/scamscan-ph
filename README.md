@@ -5,7 +5,7 @@ SCAMSCAN is a safe, full-stack capstone website with real user accounts and two 
 - **ScamScan Detector:** a user checker for English, Tagalog, Taglish, and Filipino slang.
 - **CyberShield:** an administrator-only dashboard for simulated small-business login, file, network, and user-behavior events.
 
-It uses React + JSX and HTML through Vite for the frontend, Express for the API, and MongoDB/Mongoose for storage. Passwords are BCrypt-hashed; sessions are held in HTTP-only cookies; registration and reset codes are hashed and expire after 10 minutes. The detector is an explainable rule-based educational tool, not a trained AI model or proof that a link is safe. CyberShield uses simulated events only and does not scan real devices or networks.
+It uses React + JSX and HTML through Vite for the frontend, Express for the API, and MongoDB/Mongoose for storage. Passwords are BCrypt-hashed; JWT sessions are held in HTTP-only cookies and expire after 30 minutes by default; registration and reset codes are hashed and expire after 10 minutes. The detector is an explainable rule-based educational tool, not a trained AI model or proof that a link is safe. CyberShield uses simulated events only and does not scan real devices or networks.
 
 ## Included proposal features
 
@@ -23,10 +23,13 @@ It uses React + JSX and HTML through Vite for the frontend, Express for the API,
 | Live high-risk alert feed and response | CyberShield dashboard: acknowledge or resolve a simulated alert |
 | Threats/day, attack type, highest-risk users, file activity | CyberShield dashboard charts |
 | Registration, login, logout, reset password | Pending registration OTP, MongoDB `users` collection, `/api/auth` endpoints, three-attempt login lock |
-| User vs. admin permissions | User history is private; analytics/CyberShield/user management require admin role |
+| User, Staff, and Admin permissions | Users have private scans and support; Staff manage regular users, content, and support; Admin control roles and maintenance |
 | Profile and settings | User name and notification preferences are updated in MongoDB |
-| Help, recovery guide, and About Us | Professional in-app support and product pages |
-| Guest mode | A private temporary MongoDB user named Guest is created per browser session |
+| Help, recovery guide, and About Us | Professional in-app support and informational pages |
+| User-to-Staff chat | Floating popup, private messages and media in MongoDB/GridFS, automatic refresh, Staff inbox, Admin oversight |
+| Member overview and report history | Large circular Detector shortcut, sidebar navigation, fixed table with ten reports per page |
+| Staff workspace | A separate dashboard for user management, content CRUD, and customer support |
+| Maintenance mode | Admin-controlled, persisted in MongoDB, enforced on the API and shown in the UI |
 | Image scan | Browser OCR extracts screenshot text before ScamScan analyzes and saves it |
 | Rule-based foundation with a future ML path | Explainable MVP below; upgrade plan in Step 10 |
 
@@ -59,9 +62,39 @@ It also has complete CRUD workflows:
 | Support requests | Member sends request | Member history / admin inbox | Admin can reply and change status | Retained with account until admin deletes it |
 | Security events | Admin simulation | CyberShield dashboard | Acknowledge or resolve alerts | Deleting an admin-submitted account removes its associated simulated events |
 
-The administrator has a separate control center with report review, help replies, system analysis, audit logs, CyberShield, simulated-event tools, account management, and their own profile/settings. Guest accounts are excluded from the member directory; guest scan reports remain visible to administrators.
+The administrator has a separate control center with report review, help replies, system analysis, audit logs, CyberShield, account management, content, maintenance, and profile/settings. Guest access has been removed. Existing guest records are excluded from authentication and account management without deleting historical database data.
 
-Guest visitors can choose **Continue as Guest** from the landing page or sign-in page. ScamScan creates an isolated guest account named Guest, so guest scan history is not shared with other visitors. Guest accounts do not receive profile/password settings.
+## User roles and operations
+
+| Role | Access |
+| --- | --- |
+| User | Verified account, detector, private history, support, profile and settings |
+| Staff | Regular-user account management, content publishing, support replies, own profile/settings |
+| Admin | All management features plus Staff/Admin role assignment, report review, analytics, audit log, CyberShield, and maintenance mode |
+
+To create Staff access, register and verify an ordinary account, then sign in as Admin, open **Accounts → Edit details**, select **Staff**, and save. The Staff member signs in with their own email and password. Public registration always creates a regular User; Staff cannot promote themselves or edit Staff/Admin accounts.
+
+**Manage Content** creates guides, news, and announcements. Drafts stay private; published entries appear on the landing page and user overview.
+
+**Staff and Admin layouts:** Both workspaces use a compact, grouped sidebar that stays in place on desktop and becomes a horizontally scrollable navigation strip on smaller screens. Large page introductions remain hidden; functional card labels and accessible page headings remain. Staff get member/content/request totals and direct shortcuts. Admin get account/report/request totals, recent activity and system tools. Long lists scroll inside stable-height panels instead of stretching the entire dashboard.
+
+**Accounts** has name/email search, status filters, Admin-only role filters, ten rows per page and one account editor at a time. Record, edit, suspend/activate and delete actions retain their API permissions; self-suspension, self-deletion and changing your own Admin role are disabled in the UI as well as protected by the API. Full account records separate recent reports and requests into paged sections, with security/audit sections available only to Admin.
+
+**Help inbox** uses a request list and a single reading/reply pane. Search or filter by status, choose a request, reply, or change its status without working through a long stack of forms. **Content management** separates the editor from a searchable, filtered library with five entries per page. **Report review** and **Audit log** use fixed-column tables with twenty rows per page and contained scrolling. Audit filtering covers the latest 250 events supplied by the existing API. The maintenance page separates saved mode, editable controls and a visitor-message preview; changes are applied only after saving. System Analysis and CyberShield retain their real saved data and clearly identify rule-based results and simulated events.
+
+**Chat with Staff:** Click the **Chat** bubble in the bottom-right corner of any signed-in page. Sidebar and overview chat shortcuts open the same popup without leaving the page. Members talk to the shared Staff/Admin support team; staff choose a member from their inbox. Minimize or press Escape to close the popup without losing its draft. Signing out unmounts it and clears account-specific chat state. Messages refresh every 10 seconds and the inbox every 30 seconds while the popup and browser tab are visible. Earlier messages can be loaded without refreshing the page. The displayed staff directory lists team members, not live online presence.
+
+Use the **paperclip** to select up to three attachments per message, with or without a text caption. Images (PNG/JPG/WEBP/GIF) are limited to **5 MB**, videos (MP4/WEBM) to **25 MB**, and audio (MP3/WAV), PDF and TXT files to **10 MB** each. Images preview inline; videos/audio have playback controls; all files can be downloaded. The API checks size, extension and content signatures, limits uploads to six per minute per account/IP, and only accepts the sender's pending files from that conversation. HTML, SVG, executables and arbitrary file formats are not accepted. These checks are not antivirus scanning: do not open untrusted downloads.
+
+Messages and conversations are stored in `chatmessages` and `chatthreads`; attachment bytes are stored privately in MongoDB GridFS (`chat_uploads.files` / `chat_uploads.chunks`) using the existing database connection. No public uploads folder, extra package or MongoDB migration is needed. Reading or streaming a sent attachment requires an authenticated conversation owner or authorized Staff/Admin; video seeking supports byte ranges. Unsent uploads older than 24 hours are cleaned up when that sender next uploads. Account deletion also removes that account's conversation files. Messages are limited to 2,000 characters and 15 sends per minute per account/IP. Do not share credentials or payment details. Chat is not an emergency service.
+
+**Detector, Recovery Guide and Profile:** The detector uses separate stable input/result cards with Message, Link and Image modes. Successful scans are still saved and clear their input. **Recovery Guide** places **Private request** and **Your requests** at the top, with replies inside expandable requests and short recovery guides below. New requests appear immediately after submission. **Profile** adds an identity card and security summary while preserving name updates and the Settings shortcut. These layouts stack on smaller screens and respect reduced-motion preferences.
+
+**Scan History** uses a fixed-column table with ten row slots and ten reports per page. An eleventh report creates another page; use **Previous / Next** to navigate. Risk filters reset to page one, and deleting the last report on a page returns to the last available page. The upper duplicate navigation tabs have been removed; the sidebar remains available on desktop and mobile.
+
+**Maintenance Mode** is available only to Admin. Enable it and save a public message to pause visitors, User, and Staff access. Admin login, password recovery, and maintenance controls remain available. Existing screens check maintenance every 30 seconds and on focus; API enforcement is immediate. Disable maintenance to reopen the app.
+
+JWT sessions expire after **30 minutes** by default for members, staff, and admins, including sessions left idle. Use `SESSION_TTL_HOURS=0.5` in `server/.env`, restart the API, and sign in again. The maximum session duration is 30 minutes; older longer settings fall back to this limit. This is measured from sign-in, not the last interaction. The browser returns to Login when the deadline arrives, on resume/focus after expiration, or when an authenticated API call returns 401. Role changes invalidate the old session; sign in again to use the new role.
 
 ## Step-by-step: run it locally
 
@@ -85,7 +118,7 @@ Guest visitors can choose **Continue as Guest** from the landing page or sign-in
    Copy-Item server/.env.example server/.env
    ```
 
-5. **Set your MongoDB connection string and session secret** in `server/.env`.
+5. **Set your MongoDB connection string and session secret** in `server/.env`. `SESSION_TTL_HOURS=0.5` sets a 30-minute login session; after it expires, the app signs the user out and returns them to the login screen.
 
    For a local MongoDB server, leave:
 
@@ -109,7 +142,13 @@ Guest visitors can choose **Continue as Guest** from the landing page or sign-in
    npm run create-admin
    ```
 
-   Registration in the website always creates a normal `user` account. Only this controlled command can create or promote the initial `admin` account.
+   Registration in the website always creates a normal `user` account. Use this controlled command to create the initial `admin` account. Administrators can then assign Staff or Admin roles in the account-management screen.
+
+   To change only an existing account password without changing its role, run:
+
+   ```powershell
+   npm run reset-password
+   ```
 
 7. **Start both applications.**
 
@@ -119,9 +158,9 @@ Guest visitors can choose **Continue as Guest** from the landing page or sign-in
 
    Open [http://localhost:5173](http://localhost:5173). The API health check is at [http://localhost:5000/api/health](http://localhost:5000/api/health).
 
-8. **Create a normal user account.** Open [http://localhost:5173](http://localhost:5173), select **Create account**, and request the six-digit email code. The user record is created after the code is verified. Passwords must have 8–128 characters, a letter, a number, and no spaces. Without SMTP configured, development mode displays the code in the UI. Sign in as the administrator account to access the control center.
+8. **Create a normal user account.** Open [http://localhost:5173](http://localhost:5173), select **Create account**, and request the six-digit email code. The user record is created after the code is verified. Passwords must have 8–128 characters and no spaces. Without SMTP configured, development mode displays the code in the UI. Sign in as the administrator account to access the control center.
 
-9. **Demo ScamScan Detector.** As a signed-in user, select **Use an example**, then **Check risk**. The app saves the assessment in MongoDB, shows the score, classification, language, signals, and recommendation, and clears the input for the next check. Scan History has risk tabs and page controls.
+9. **Demo ScamScan Detector.** As a signed-in user, select **Try an example**, then **Check risk**. The app saves the assessment in MongoDB, shows the score, classification, signals, and recommendation, and clears the input for the next check. The full saved report also shows language. Scan History has risk tabs and page controls.
 
 10. **Demo CyberShield.** Sign in as an administrator and select **Load safe demo data** in the sidebar. It inserts synthetic events only. Open **CyberShield** to see the severity, threat type, user, file-activity charts, high-risk alert feed, and acknowledge/resolve actions.
 
@@ -156,7 +195,10 @@ Guest visitors can choose **Continue as Guest** from the landing page or sign-in
 | `POST` | `/api/auth/login` | Create secure browser session |
 | `POST` | `/api/auth/forgot-password` | Request a 10-minute reset code |
 | `POST` | `/api/auth/reset-password` | Set a new password with a valid code |
-| `GET` | `/api/admin/users` | Administrator-only account list |
+| `GET` | `/api/admin/users` | Admin account directory / Staff regular-user directory |
+| `GET` / `POST` / `PATCH` / `DELETE` | `/api/management/content` | Staff/Admin content CRUD (append record ID for edits/deletes) |
+| `GET` / `PATCH` | `/api/admin/maintenance` | Admin maintenance settings |
+| `GET` | `/api/site/status` | Public maintenance status |
 | `PATCH` | `/api/admin/reports/:id` | Human review of a saved report |
 | `POST` | `/api/admin/support/:id/reply` | Reply to a member's help request |
 

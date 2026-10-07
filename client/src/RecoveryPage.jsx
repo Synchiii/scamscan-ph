@@ -1,0 +1,18 @@
+import UiIcon from './UiIcon';
+
+const guides = [
+  ['Shared an OTP or PIN', 'lock', ['Contact your bank or payment provider immediately to secure the account.', 'Change passwords and PINs from a trusted device.', 'Keep evidence and transaction references for your report.']],
+  ['Clicked a suspicious link', 'link', ['Do not enter any more personal information.', 'If you entered a password, change it from a trusted device.', 'Run a security check and monitor your account activity.']],
+  ['Sent money to a scammer', 'shield', ['Stop payments, including any supposed release or recovery fees.', 'Contact your bank or payment provider through its official app or number.', 'Save messages and receipts, and report the incident.']],
+];
+
+export default function RecoveryPage({ sendHelp, busy, mySupport = [], go }) {
+  return <section className="recovery-workspace"><h1 className="visually-hidden">Recovery guide and private support</h1>
+    <div className="recovery-request-grid">
+      <form className="studio-card recovery-request-form" onSubmit={sendHelp}><div className="compact-card-heading"><span className="studio-mark"><UiIcon name="mail" /></span><div><h2>Private request</h2><p>Tell our team what happened.</p></div></div><label>Subject<input name="subject" minLength="3" maxLength="140" required placeholder="What do you need help with?" /></label><label>Message<textarea name="message" minLength="10" maxLength="4000" required rows="5" placeholder="A short description is enough. Never include passwords or OTPs." /></label><button className="primary" disabled={busy}>{busy ? 'Sending…' : 'Send request'}<UiIcon name="arrow" size={17} /></button><button type="button" className="recovery-chat-link" onClick={() => go('chat')}><UiIcon name="message" size={16} />Prefer a conversation? Chat with Staff</button></form>
+      <article className="studio-card recovery-your-requests"><div className="compact-card-heading"><span className="studio-mark"><UiIcon name="file" /></span><div><h2>Your requests</h2><p>{mySupport.length ? mySupport.length + ' saved request' + (mySupport.length === 1 ? '' : 's') : 'Your updates will appear here.'}</p></div></div><div className="recovery-request-list">{mySupport.length ? mySupport.map((item) => <details className="recovery-ticket" key={item._id}><summary><span><b>{item.subject}</b><small>{new Date(item.createdAt).toLocaleDateString()}{item.replies?.length ? ' · ' + item.replies.length + ' replies' : ''}</small></span><span className={'ticket-status ' + item.status}>{item.status === 'in-progress' ? 'In progress' : item.status === 'resolved' ? 'Resolved' : 'Open'}</span><UiIcon name="chevron" size={16} /></summary><div className="recovery-ticket-body"><p>{item.message}</p>{item.replies?.map((reply) => <div key={reply._id} className="recovery-ticket-reply"><b>{reply.byName}</b><p>{reply.body}</p><small>{new Date(reply.createdAt).toLocaleString()}</small></div>)}</div></details>) : <div className="recovery-empty"><UiIcon name="mail" size={36} /><b>No requests yet</b><p>Send a request to start.<br />Replies stay private in your account.</p></div>}</div></article>
+    </div>
+    <div className="recovery-urgent-note"><UiIcon name="shield" size={18} /><p>Money or account access at risk? Contact your bank or payment provider first.</p></div>
+    <div className="recovery-guides"><span className="recovery-guides-label">Quick recovery steps</span>{guides.map(([label, icon, steps]) => <details className="recovery-guide" key={label}><summary><UiIcon name={icon} size={20} /><b>{label}</b><span>3 steps</span><UiIcon name="chevron" size={16} /></summary><ol>{steps.map((step) => <li key={step}>{step}</li>)}</ol></details>)}</div>
+  </section>;
+}

@@ -8,7 +8,8 @@
     "build": "npm run build --workspace client",
     "test": "npm run test --workspace server",
     "seed": "npm run seed --workspace server",
-    "create-admin": "npm run create-admin --workspace server"
+    "create-admin": "npm run create-admin --workspace server",
+    "reset-password": "npm run reset-password --workspace server"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

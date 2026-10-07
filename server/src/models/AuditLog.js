@@ -4,7 +4,7 @@ const auditLogSchema = new mongoose.Schema({
   actor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
   actorName: { type: String, required: true, maxlength: 80 },
   actorEmail: { type: String, required: true, maxlength: 254 },
-  actorRole: { type: String, required: true, enum: ['user', 'admin', 'guest', 'system'] },
+  actorRole: { type: String, required: true, enum: ['user', 'staff', 'admin', 'system'] },
   action: { type: String, required: true, maxlength: 100, index: true },
   targetType: { type: String, maxlength: 50 },
   targetId: { type: String, maxlength: 100 },
