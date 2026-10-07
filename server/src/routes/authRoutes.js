@@ -190,13 +190,48 @@ router.patch('/preferences', requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/change-password', requireAuth, authLimiter, async (req, res, next) => {
+router.post('/change-password/request-code', requireAuth, authLimiter, async (req, res, next) => {
   try {
-    const user = await User.findById(req.user._id).select('+passwordHash');
+    if (process.env.NODE_ENV === 'production' && !emailConfigured()) return res.status(503).json({ message: 'Password-change email verification is temporarily unavailable.' });
+    const user = await User.findById(req.user._id).select('+passwordHash +passwordChangeCodeLastSentAt');
     const currentPassword = typeof req.body.currentPassword === 'string' ? req.body.currentPassword : '';
     if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) return res.status(400).json({ message: 'Your current password is incorrect.' });
+    if (!user.emailVerified) return res.status(403).json({ message: 'Verify your email before changing your password.' });
+    if (user.passwordChangeCodeLastSentAt && Date.now() - user.passwordChangeCodeLastSentAt.getTime() < 60_000) return res.status(429).json({ message: 'Please wait one minute before requesting another code.' });
+    const code = makeCode();
+    user.passwordChangeCodeHash = codeHash(code);
+    user.passwordChangeCodeExpires = new Date(Date.now() + 10 * 60_000);
+    user.passwordChangeCodeAttempts = 0;
+    user.passwordChangeCodeLastSentAt = new Date();
+    await user.save();
+    await sendOtpEmail({ to: user.email, name: user.name, code, purpose: 'change' });
+    await recordAudit(req, 'user.password_change_code_requested', { targetType: 'user', targetId: user._id });
+    return res.json(devCode({ message: 'A six-digit confirmation code was sent to your email. It expires in 10 minutes.' }, code));
+  } catch (error) { next(error); }
+});
+
+router.post('/change-password', requireAuth, authLimiter, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select('+passwordHash +passwordChangeCodeHash +passwordChangeCodeExpires +passwordChangeCodeAttempts +passwordChangeCodeLastSentAt');
+    const currentPassword = typeof req.body.currentPassword === 'string' ? req.body.currentPassword : '';
+    const code = String(req.body.code || '').trim();
+    if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) return res.status(400).json({ message: 'Your current password is incorrect.' });
     if (!validPassword(req.body.newPassword)) return res.status(400).json({ message: passwordHelp });
+    if (!validOtp(code)) return res.status(400).json({ message: 'Enter the six-digit confirmation code sent to your email.' });
+    if (user.passwordChangeCodeAttempts >= 5 || !user.passwordChangeCodeExpires || user.passwordChangeCodeExpires <= new Date()) return res.status(400).json({ message: 'This confirmation code is invalid or expired. Request a new code.' });
+    if (user.passwordChangeCodeHash !== codeHash(code)) {
+      user.passwordChangeCodeAttempts += 1;
+      await user.save();
+      return res.status(400).json({ message: 'That confirmation code is invalid.' });
+    }
     user.passwordHash = await bcrypt.hash(req.body.newPassword, 12);
+    user.passwordChangeCodeHash = undefined;
+    user.passwordChangeCodeExpires = undefined;
+    user.passwordChangeCodeAttempts = 0;
+    user.passwordChangeCodeLastSentAt = undefined;
+    user.failedLoginAttempts = 0;
+    user.loginLockedUntil = undefined;
+    user.loginLockLevel = 0;
     await user.save();
     await recordAudit(req, 'user.password_changed', { targetType: 'user', targetId: user._id });
     clearSessionCookie(res);

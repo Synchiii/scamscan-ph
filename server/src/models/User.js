@@ -18,6 +18,10 @@ const userSchema = new mongoose.Schema({
   },
   resetPasswordHash: { type: String, select: false },
   resetPasswordExpires: { type: Date, select: false },
+  passwordChangeCodeHash: { type: String, select: false },
+  passwordChangeCodeExpires: { type: Date, select: false },
+  passwordChangeCodeAttempts: { type: Number, default: 0, select: false },
+  passwordChangeCodeLastSentAt: { type: Date, select: false },
 }, { timestamps: true });
 
 export default mongoose.model('User', userSchema);
