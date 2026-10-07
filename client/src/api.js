@@ -76,7 +76,7 @@ export const api = {
   startChat: (options = {}) => request('/chat/threads', { ...options, method: 'POST' }),
   getChatMessages: (id, { before, ...options } = {}) => request(`/chat/threads/${id}/messages${before ? '?before=' + encodeURIComponent(before) : ''}`, options),
   sendChatMessage: (id, body, { attachments = [], ...options } = {}) => request(`/chat/threads/${id}/messages`, { ...options, method: 'POST', body: JSON.stringify({ body, attachments }) }),
-  getChatStaff: (options = {}) => request('/chat/staff', options),
+  claimChatThread: (id, options = {}) => request(`/chat/threads/${id}/claim`, { ...options, method: 'POST' }),
   uploadChatAttachment: (id, file, contentType, options = {}) => request(`/chat/threads/${id}/attachments`, { ...options, method: 'POST', body: file, headers: { 'Content-Type': contentType, 'X-File-Name': encodeURIComponent(file.name) } }),
   removeChatAttachment: (id, fileId) => request(`/chat/threads/${id}/attachments/${fileId}`, { method: 'DELETE' }),
   chatAttachmentUrl: (id, fileId, download = false) => `${API_URL}/chat/threads/${id}/attachments/${fileId}${download ? '?download=1' : ''}`,
@@ -89,3 +89,5 @@ export const api = {
   saveContent: (id, data) => request('/management/content' + (id ? '/' + id : ''), { method: id ? 'PATCH' : 'POST', body: JSON.stringify(data) }),
   deleteContent: (id) => request('/management/content/' + id, { method: 'DELETE' }),
 };
+
+

@@ -6,7 +6,7 @@ export default function ChatWidget({ user, open, setOpen }) {
   const [openedOnce, setOpenedOnce] = useState(open);
   const launcher = useRef(null);
   const panel = useRef(null);
-  const manager = ['staff', 'admin'].includes(user.role);
+  const manager = user.role === 'staff';
   function close() { setOpen(false); launcher.current?.focus({ preventScroll: true }); }
   useEffect(() => { if (open) setOpenedOnce(true); }, [open]);
   useEffect(() => {
@@ -24,3 +24,4 @@ export default function ChatWidget({ user, open, setOpen }) {
     <button type="button" className="floating-chat-launcher" ref={launcher} aria-label={open ? 'Minimize support chat' : 'Open support chat'} aria-expanded={open} aria-controls={openedOnce ? 'scamscan-chat-popup' : undefined} onClick={() => setOpen(!open)}><UiIcon name={open ? 'close' : 'message'} size={25} /><span>{open ? 'Close' : 'Chat'}</span></button>
   </div>;
 }
+
