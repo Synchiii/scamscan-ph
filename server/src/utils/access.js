@@ -6,6 +6,8 @@ export function managedAccountQuery(actor, id) {
 }
 
 export function canSetRole(actor, role) {
-  return actor.role === 'admin' && ['user', 'staff', 'admin'].includes(role);
+  // Administrator accounts must be created through the protected server script,
+  // never promoted from the browser account editor.
+  return actor.role === 'admin' && ['user', 'staff'].includes(role);
 }
 
