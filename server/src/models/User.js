@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   failedLoginAttempts: { type: Number, default: 0, select: false },
   loginLockedUntil: { type: Date, select: false },
+  loginLockLevel: { type: Number, default: 0, select: false },
   preferences: {
     emailNotifications: { type: Boolean, default: true },
     scanTips: { type: Boolean, default: true },

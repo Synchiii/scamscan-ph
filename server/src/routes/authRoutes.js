@@ -37,11 +37,15 @@ function devCode(body, code) {
   return body;
 }
 
-const LOGIN_LOCK_MS = 5 * 60 * 1000;
-function lockResponse(res, until) {
+const LOGIN_LOCK_MINUTES = [5, 15, 30];
+function lockMinutesFor(level) {
+  return LOGIN_LOCK_MINUTES[Math.min(Math.max(Number(level) || 0, 0), LOGIN_LOCK_MINUTES.length - 1)];
+}
+function lockResponse(res, until, lockMinutes) {
   const seconds = Math.max(1, Math.ceil((until.getTime() - Date.now()) / 1000));
   res.set('Retry-After', String(seconds));
-  return res.status(429).json({ message: 'Too many incorrect passwords. Try again after 5 minutes.', retryAfter: seconds });
+  const minutes = lockMinutes || Math.max(1, Math.ceil(seconds / 60));
+  return res.status(429).json({ message: `Too many incorrect passwords. Try again after ${minutes} minute${minutes === 1 ? '' : 's'}.`, retryAfter: seconds });
 }
 
 router.post('/register', authLimiter, async (req, res, next) => {
@@ -129,20 +133,22 @@ router.post('/login', authLimiter, async (req, res, next) => {
     const email = String(req.body.email || '').trim().toLowerCase();
     const password = typeof req.body.password === 'string' ? req.body.password : '';
     if (!validEmail(email) || password.length > 128) return res.status(400).json({ message: 'Enter a valid email and password.' });
-    const user = await User.findOne({ email, isGuest: { $ne: true } }).select('+passwordHash +failedLoginAttempts +loginLockedUntil');
+    const user = await User.findOne({ email, isGuest: { $ne: true } }).select('+passwordHash +failedLoginAttempts +loginLockedUntil +loginLockLevel');
     if (user?.loginLockedUntil && user.loginLockedUntil > new Date()) return lockResponse(res, user.loginLockedUntil);
     if (!user || !user.isActive || !(await bcrypt.compare(password, user.passwordHash))) {
       if (user?.isActive) {
-        const updated = await User.findByIdAndUpdate(user._id, { $inc: { failedLoginAttempts: 1 } }, { new: true }).select('+failedLoginAttempts');
+        const updated = await User.findByIdAndUpdate(user._id, { $inc: { failedLoginAttempts: 1 } }, { new: true }).select('+failedLoginAttempts +loginLockLevel');
         const attempts = updated.failedLoginAttempts;
-        const lockUntil = attempts >= 3 ? new Date(Date.now() + LOGIN_LOCK_MS) : undefined;
-        if (lockUntil) await User.updateOne({ _id: user._id }, { $set: { failedLoginAttempts: 0, loginLockedUntil: lockUntil } });
-        if (lockUntil) return lockResponse(res, lockUntil);
-        return res.status(401).json({ message: `Incorrect email or password. ${3 - attempts} attempt${attempts === 2 ? '' : 's'} remaining before a 5-minute lock.` });
+        const lockLevel = Number(updated.loginLockLevel) || 0;
+        const lockMinutes = lockMinutesFor(lockLevel);
+        const lockUntil = attempts >= 3 ? new Date(Date.now() + lockMinutes * 60 * 1000) : undefined;
+        if (lockUntil) await User.updateOne({ _id: user._id }, { $set: { failedLoginAttempts: 0, loginLockedUntil: lockUntil }, $inc: { loginLockLevel: 1 } });
+        if (lockUntil) return lockResponse(res, lockUntil, lockMinutes);
+        return res.status(401).json({ message: `Incorrect email or password. ${3 - attempts} attempt${attempts === 2 ? '' : 's'} remaining before a ${lockMinutes}-minute lock.` });
       }
       return res.status(401).json({ message: 'Incorrect email or password.' });
     }
-    if (user.failedLoginAttempts || user.loginLockedUntil) await User.updateOne({ _id: user._id }, { $set: { failedLoginAttempts: 0 }, $unset: { loginLockedUntil: 1 } });
+    if (user.failedLoginAttempts || user.loginLockedUntil || user.loginLockLevel) await User.updateOne({ _id: user._id }, { $set: { failedLoginAttempts: 0, loginLockLevel: 0 }, $unset: { loginLockedUntil: 1 } });
     if (!user.emailVerified) return res.status(403).json({ message: 'Verify your email before signing in.', needsVerification: true, email: user.email });
     const settings = await SiteSettings.findOne({ key: 'site' }).lean();
     if (settings?.maintenanceEnabled && user.role !== 'admin') {
@@ -225,6 +231,7 @@ router.post('/reset-password', authLimiter, async (req, res, next) => {
     user.resetPasswordExpires = undefined;
     user.failedLoginAttempts = 0;
     user.loginLockedUntil = undefined;
+    user.loginLockLevel = 0;
     await user.save();
     req.user = user;
     await recordAudit(req, 'user.password_reset_completed', { targetType: 'user', targetId: user._id });
