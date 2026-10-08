@@ -6,7 +6,6 @@ import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/authRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import scamRoutes from './routes/scamRoutes.js';
-import threatRoutes from './routes/threatRoutes.js';
 import supportRoutes from './routes/supportRoutes.js';
 import siteRoutes from './routes/siteRoutes.js';
 import managementRoutes from './routes/managementRoutes.js';
@@ -40,7 +39,6 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'scamsca
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/scam', scamRoutes);
-app.use('/api/threats', threatRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/site', siteRoutes);
 app.use('/api/management', managementRoutes);

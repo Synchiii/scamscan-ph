@@ -35,9 +35,9 @@ export function FixedRows({ rows, render, columns, slots = 10, emptyMessage = 'N
   return <tbody>{rows.map(render)}{Array.from({ length: Math.max(0, slots - rows.length) }, (_, index) => <tr className="console-placeholder" key={'empty-' + index} aria-hidden={index !== 0 || Boolean(rows.length)}><td colSpan={columns}>{index === 0 && !rows.length ? <span role={loading ? 'status' : undefined}>{loading ? 'Loading records…' : emptyMessage}</span> : <span aria-hidden="true">&nbsp;</span>}</td></tr>)}</tbody>;
 }
 
-const navIcons = { staffOverview: 'dashboard', adminOverview: 'dashboard', adminUsers: 'users', contents: 'file', chat: 'message', adminSupport: 'mail', profile: 'user', settings: 'settings', adminReports: 'shield', adminAnalytics: 'chart', adminAudit: 'clock', adminCyber: 'activity', adminEvents: 'edit', maintenance: 'power' };
+const navIcons = { staffOverview: 'dashboard', adminOverview: 'dashboard', adminUsers: 'users', contents: 'file', chat: 'message', adminSupport: 'mail', profile: 'user', settings: 'settings', adminReports: 'shield', adminAnalytics: 'chart', adminAudit: 'clock', maintenance: 'power' };
 export function ManagementSidebar({ entries, page, chatOpen, go, role }) {
-  const groups = [{ label: 'Workspace', ids: ['staffOverview', 'adminOverview', 'adminUsers', 'adminReports', 'contents', 'adminSupport', 'chat'] }, { label: 'System', ids: ['adminAnalytics', 'adminAudit', 'adminCyber', 'adminEvents', 'maintenance'] }, { label: 'Account', ids: ['profile', 'settings'] }];
+  const groups = [{ label: 'Workspace', ids: ['staffOverview', 'adminOverview', 'adminUsers', 'adminReports', 'contents', 'adminSupport', 'chat'] }, { label: 'System', ids: ['adminAnalytics', 'adminAudit', 'maintenance'] }, { label: 'Account', ids: ['profile', 'settings'] }];
   const related = { adminAccountDetails: 'adminUsers', report: role === 'admin' ? 'adminReports' : 'adminUsers' };
   return <aside className="sidebar management-sidebar"><span className="management-role"><UiIcon name="shield" size={16} />{role === 'admin' ? 'Admin workspace' : 'Staff workspace'}</span>{groups.map((group) => {
     const links = entries.filter(([id]) => group.ids.includes(id));

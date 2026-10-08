@@ -46,12 +46,12 @@ router.get('/users/:id/details', async (req, res, next) => {
   try {
     const user = await User.findOne(managedAccountQuery(req.user, req.params.id)).select('name email role emailVerified isActive preferences createdAt updatedAt').lean();
     if (!user) return res.status(404).json({ message: 'Account not found.' });
-    const [analyses, events, support, audit] = await Promise.all([
-      MessageAnalysis.find({ user: user._id }).sort({ createdAt: -1 }).limit(100).lean(), req.user.role === 'admin' ? SecurityEvent.find({ submittedBy: user._id }).sort({ createdAt: -1 }).limit(100).lean() : [],
+    const [analyses, support, audit] = await Promise.all([
+      MessageAnalysis.find({ user: user._id }).sort({ createdAt: -1 }).limit(100).lean(),
       SupportMessage.find({ from: user._id }).sort({ createdAt: -1 }).limit(50).lean(), req.user.role === 'admin' ? AuditLog.find({ actor: user._id }).sort({ createdAt: -1 }).limit(100).lean() : [],
     ]);
     await recordAudit(req, req.user.role + '.account_details_viewed', { targetType: 'user', targetId: user._id, details: user.email });
-    res.json({ user: { ...user, id: user._id }, analyses, events, support, audit });
+    res.json({ user: { ...user, id: user._id }, analyses, support, audit });
   } catch (error) { next(error); }
 });
 

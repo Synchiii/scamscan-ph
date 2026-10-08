@@ -1,11 +1,10 @@
 # SCAMSCAN — MERN Capstone Website
 
-SCAMSCAN is a safe, full-stack capstone website with real user accounts and two role-based modules:
+SCAMSCAN is a safe, full-stack capstone website with real user accounts and an explainable scam-risk detector:
 
 - **ScamScan Detector:** a user checker for English, Tagalog, Taglish, and Filipino slang.
-- **CyberShield:** an administrator-only dashboard for simulated small-business login, file, network, and user-behavior events.
 
-It uses React + JSX and HTML through Vite for the frontend, Express for the API, and MongoDB/Mongoose for storage. Passwords are BCrypt-hashed; JWT sessions are held in HTTP-only cookies and expire after 30 minutes by default; registration and reset codes are hashed and expire after 10 minutes. The detector is an explainable rule-based educational tool, not a trained AI model or proof that a link is safe. CyberShield uses simulated events only and does not scan real devices or networks.
+It uses React + JSX and HTML through Vite for the frontend, Express for the API, and MongoDB/Mongoose for storage. Passwords are BCrypt-hashed; JWT sessions are held in HTTP-only cookies and expire after 30 minutes by default; registration and reset codes are hashed and expire after 10 minutes. The detector is an explainable rule-based educational tool, not a trained AI model or proof that a link is safe.
 
 ## Included proposal features
 
@@ -16,12 +15,6 @@ It uses React + JSX and HTML through Vite for the frontend, Express for the API,
 | Scam risk bands: Safe, Warning, High, Scam | Scam scorer and analytics dashboard |
 | Plain-language result and recommendation | Scam checker result card |
 | Total checks, scam/safe split, scam traits, language analytics | Scam analytics page |
-| Login tracking: IP, time, device, location, attempts | Simulated-event form and `SecurityEvent` model |
-| File, network, and user-behavior monitoring | Simulated-event form, threat scorer, CyberShield dashboard |
-| User baseline: usual device, time, and file volume | Automatically derived after three saved events for one actor |
-| Threat weights and Low/Medium/High/Critical ranges | `server/src/services/threatScorer.js` |
-| Live high-risk alert feed and response | CyberShield dashboard: acknowledge or resolve a simulated alert |
-| Threats/day, attack type, highest-risk users, file activity | CyberShield dashboard charts |
 | Registration, login, logout, reset password | Pending registration OTP, MongoDB `users` collection, `/api/auth` endpoints, three-attempt login lock |
 | User, Staff, and Admin permissions | Users have private scans and support; Staff manage regular users, content, and support; Admin control roles and maintenance |
 | Profile and settings | User name and notification preferences are updated in MongoDB |
@@ -41,14 +34,13 @@ React + Vite browser UI
         ▼
 Express API ── scoring services ── MongoDB
   /scam                         MessageAnalysis collection
-  /threats                      SecurityEvent collection
 ```
 
 ## MERN and CRUD checklist
 
 Yes—SCAMSCAN is a **MERN** application:
 
-- **MongoDB:** users, password-reset hashes, preferences, saved scam checks, and simulated security events.
+- **MongoDB:** users, password-reset hashes, preferences, and saved scam checks.
 - **Express:** secured REST API endpoints.
 - **React:** JSX frontend, landing page, scanner, member pages, and admin console.
 - **Node.js:** runs the API, authentication, scoring, and database integration.
@@ -60,9 +52,8 @@ It also has complete CRUD workflows:
 | User accounts | Verify registration OTP / admin bootstrap | Profile and admin list | Name, preferences, password, role, active status | Admin can delete a user (not self) |
 | Saved scans | Run a scan | Filtered, paged history / admin reports | Admin can review score, level, explanation, and recommendation; audit records the edit | Owner can delete their own scan |
 | Support requests | Member sends request | Member history / admin inbox | Admin can reply and change status | Retained with account until admin deletes it |
-| Security events | Admin simulation | CyberShield dashboard | Acknowledge or resolve alerts | Deleting an admin-submitted account removes its associated simulated events |
 
-The administrator has a separate control center with report review, help replies, system analysis, audit logs, CyberShield, account management, content, maintenance, and profile/settings. Guest access has been removed. Existing guest records are excluded from authentication and account management without deleting historical database data.
+The administrator has a separate control center with report review, help replies, system analysis, audit logs, account management, content, maintenance, and profile/settings. Guest access has been removed. Existing guest records are excluded from authentication and account management without deleting historical database data.
 
 ## User roles and operations
 
@@ -70,7 +61,7 @@ The administrator has a separate control center with report review, help replies
 | --- | --- |
 | User | Verified account, detector, private history, support, profile and settings |
 | Staff | Regular-user account management, content publishing, support replies, own profile/settings |
-| Admin | All management features plus Staff/Admin role assignment, report review, analytics, audit log, CyberShield, and maintenance mode |
+| Admin | All management features plus role management, report review, analytics, audit log, and maintenance mode |
 
 To create Staff access, register and verify an ordinary account, then sign in as Admin, open **Accounts → Edit details**, select **Staff**, and save. The Staff member signs in with their own email and password. Public registration always creates a regular User; Staff cannot promote themselves or edit Staff/Admin accounts.
 
@@ -78,9 +69,9 @@ To create Staff access, register and verify an ordinary account, then sign in as
 
 **Staff and Admin layouts:** Both workspaces use a compact, grouped sidebar that stays in place on desktop and becomes a horizontally scrollable navigation strip on smaller screens. Large page introductions remain hidden; functional card labels and accessible page headings remain. Staff get member/content/request totals and direct shortcuts. Admin get account/report/request totals, recent activity and system tools. Long lists scroll inside stable-height panels instead of stretching the entire dashboard.
 
-**Accounts** has name/email search, status filters, Admin-only role filters, ten rows per page and one account editor at a time. Record, edit, suspend/activate and delete actions retain their API permissions; self-suspension, self-deletion and changing your own Admin role are disabled in the UI as well as protected by the API. Full account records separate recent reports and requests into paged sections, with security/audit sections available only to Admin.
+**Accounts** has name/email search, status filters, Admin-only role filters, ten rows per page and one account editor at a time. Record, edit, suspend/activate and delete actions retain their API permissions; self-suspension, self-deletion and changing your own Admin role are disabled in the UI as well as protected by the API. Full account records separate recent reports and requests into paged sections, with audit records available only to Admin.
 
-**Help inbox** uses a request list and a single reading/reply pane. Search or filter by status, choose a request, reply, or change its status without working through a long stack of forms. **Content management** separates the editor from a searchable, filtered library with five entries per page. **Report review** and **Audit log** use fixed-column tables with twenty rows per page and contained scrolling. Audit filtering covers the latest 250 events supplied by the existing API. The maintenance page separates saved mode, editable controls and a visitor-message preview; changes are applied only after saving. System Analysis and CyberShield retain their real saved data and clearly identify rule-based results and simulated events.
+**Help inbox** uses a request list and a single reading/reply pane. Search or filter by status, choose a request, reply, or change its status without working through a long stack of forms. **Content management** separates the editor from a searchable, filtered library with five entries per page. **Report review** and **Audit log** use fixed-column tables with twenty rows per page and contained scrolling. Audit filtering covers the latest 250 events supplied by the existing API. The maintenance page separates saved mode, editable controls and a visitor-message preview; changes are applied only after saving. System Analysis uses saved scam checks and clearly identifies rule-based results.
 
 **Chat with Staff:** Click the **Chat** bubble in the bottom-right corner of any signed-in page. Sidebar and overview chat shortcuts open the same popup without leaving the page. Members talk to the shared Staff/Admin support team; staff choose a member from their inbox. Minimize or press Escape to close the popup without losing its draft. Signing out unmounts it and clears account-specific chat state. Messages refresh every 10 seconds and the inbox every 30 seconds while the popup and browser tab are visible. Earlier messages can be loaded without refreshing the page. The displayed staff directory lists team members, not live online presence.
 
@@ -162,8 +153,6 @@ JWT sessions expire after **30 minutes** by default for members, staff, and admi
 
 9. **Demo ScamScan Detector.** As a signed-in user, select **Try an example**, then **Check risk**. The app saves the assessment in MongoDB, shows the score, classification, signals, and recommendation, and clears the input for the next check. The full saved report also shows language. Scan History has risk tabs and page controls.
 
-10. **Demo CyberShield.** Sign in as an administrator and select **Load safe demo data** in the sidebar. It inserts synthetic events only. Open **CyberShield** to see the severity, threat type, user, file-activity charts, high-risk alert feed, and acknowledge/resolve actions.
-
 11. **Test password reset.** On the sign-in screen choose **Forgot password**. Development mode displays a six-digit code when SMTP is not configured. Production requires `SMTP_*` and `EMAIL_FROM` so the code is delivered by email.
 
 12. **Run the scoring tests.**
@@ -187,9 +176,6 @@ JWT sessions expire after **30 minutes** by default for members, staff, and admi
 | `POST` | `/api/scam/analyze` | Score and save `{ "message": "..." }` |
 | `GET` | `/api/scam/history?page=1&level=High` | Current user's filtered, paged checks |
 | `GET` | `/api/scam/analytics` | Research/admin aggregate data |
-| `POST` | `/api/threats/events` | Score and save a synthetic security event |
-| `POST` | `/api/threats/demo-seed` | Insert safe demonstration events |
-| `GET` | `/api/threats/dashboard` | CyberShield metrics, charts, and alerts |
 | `POST` | `/api/auth/register` | Stage a registration and send an email OTP |
 | `POST` | `/api/auth/verify-email` | Verify OTP and create the user account |
 | `POST` | `/api/auth/login` | Create secure browser session |
@@ -208,8 +194,8 @@ JWT sessions expire after **30 minutes** by default for members, staff, and admi
 2. **Week 2 — database/API:** Draw the two MongoDB schemas, run the API and MongoDB, and verify every endpoint with Postman or Bruno.
 3. **Week 3 — frontend:** Finish the responsive checker, dashboard, empty states, error states, and accessibility labels.
 4. **Week 4 — detection evaluation:** Create a small de-identified test dataset. Record expected and actual classifications. Do not use real OTPs, banking data, private messages, malware, or unauthorized network traffic.
-5. **Week 5 — evidence:** Run usability tests, capture screenshots, and calculate confusion matrix, precision, recall, and F1 for the scam detector. For CyberShield, measure alert accuracy against your scripted synthetic scenarios.
-6. **Week 6 — presentation:** Demonstrate one scam message and one simulated security incident; show the explanation and analytics; explain data privacy, false positives, and future ML improvements.
+5. **Week 5 — evidence:** Run usability tests, capture screenshots, and calculate confusion matrix, precision, recall, and F1 for the scam detector.
+6. **Week 6 — presentation:** Demonstrate scam-message and suspicious-link checks; show the explanation and analytics; explain data privacy, false positives, and future ML improvements.
 
 ## Before deployment
 
