@@ -6,8 +6,12 @@ const messageAnalysisSchema = new mongoose.Schema({
   language: { type: String, required: true },
   score: { type: Number, required: true, min: 0, max: 100 },
   level: { type: String, required: true, enum: ['Safe', 'Warning', 'High', 'Scam'] },
+  confidence: { type: Number, min: 0, max: 100, default: 0 },
+  confidenceLevel: { type: String, enum: ['Low', 'Moderate', 'High'], default: 'Low' },
+  analysisVersion: { type: String, default: '1.0.0' },
   flags: [{ type: String }],
-  signals: [{ label: String, points: Number }],
+  signals: [{ label: String, points: Number, category: String, evidence: String }],
+  urls: [{ host: String, points: Number, verdict: String, reasons: [String] }],
   explanation: { type: String, required: true },
   recommendation: { type: String, required: true },
   adminReview: {

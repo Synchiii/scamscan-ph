@@ -28,7 +28,7 @@ router.get('/history', requireAuth, async (req, res, next) => {
     const total = await MessageAnalysis.countDocuments(query);
     const pages = Math.max(1, Math.ceil(total / limit));
     const page = Math.min(pages, Math.max(1, Number.parseInt(req.query.page, 10) || 1));
-    const analyses = await MessageAnalysis.find(query).select('message language score level flags signals explanation recommendation createdAt updatedAt').sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean();
+    const analyses = await MessageAnalysis.find(query).select('message language score level confidence confidenceLevel analysisVersion flags signals urls explanation recommendation createdAt updatedAt').sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean();
     res.json({ analyses, total, page, pages });
   } catch (error) { next(error); }
 });

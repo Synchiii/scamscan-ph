@@ -10,7 +10,10 @@ test('scam scorer flags OTP, prize, urgency and URL', () => {
   const result = scoreScamMessage('Congratulations! Nanalo ka ng ₱50,000! Send your OTP now: https://bit.ly/claim');
   assert.equal(result.level, 'Scam');
   assert.ok(result.score >= 80);
-  assert.ok(result.flags.includes('Request to disclose an OTP or PIN'));
+  assert.ok(result.flags.includes('Requests a password, OTP, PIN, or verification code'));
+  assert.equal(result.confidenceLevel, 'High');
+  assert.equal(result.analysisVersion, '2.0.0');
+  assert.equal(result.urls[0].verdict, 'Suspicious');
 });
 
 test('language detector recognizes Taglish', () => {
@@ -23,12 +26,21 @@ test('detector rates a suspicious account URL above a routine HTTPS link', () =>
   assert.ok(risky.score >= 60);
   assert.ok(risky.score > routine.score);
   assert.equal(risky.level, 'High');
-  assert.ok(risky.flags.includes('Unverified brand-like domain'));
+  assert.ok(risky.flags.some((flag) => flag.includes('Domain resembles a brand')));
+  assert.equal(routine.score, 0);
+  assert.equal(routine.urls[0].verdict, 'Recognized domain');
 });
 
 test('ordinary security guidance does not become an OTP disclosure request', () => {
   const result = scoreScamMessage('Please do not share your OTP with anyone.');
-  assert.ok(!result.flags.includes('Request to disclose an OTP or PIN'));
+  assert.ok(!result.flags.includes('Requests a password, OTP, PIN, or verification code'));
+});
+
+test('context combinations increase risk without claiming certainty', () => {
+  const result = scoreScamMessage('URGENT: Your BDO account is suspended. Send your verification code now to avoid a penalty.');
+  assert.ok(result.score >= 55);
+  assert.ok(result.flags.includes('Credential request appears with organization impersonation'));
+  assert.match(result.explanation, /not certainty of fraud/i);
 });
 
 test('threat scorer creates a critical combined-login-and-file alert', () => {
