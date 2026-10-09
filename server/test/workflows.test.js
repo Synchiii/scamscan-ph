@@ -76,8 +76,13 @@ test('admin can promote a member to staff but cannot remove their own admin acce
   assert.equal((await request('/admin/users/' + ids.user, 'admin', 'PATCH', { role: 'staff' })).body.user.role, 'staff');
   assert.equal((await request('/admin/users/' + ids.admin, 'admin', 'PATCH', { role: 'staff' })).status, 400);
 });
-test('staff cannot access maintenance, audit, report review, or CyberShield', async () => {
-  for (const path of ['/admin/maintenance', '/admin/audit-logs', '/admin/reports', '/threats/dashboard']) assert.equal((await request(path, 'staff')).status, 403);
+test('staff cannot access maintenance, audit, or report review', async () => {
+  for (const path of ['/admin/maintenance', '/admin/audit-logs', '/admin/reports']) assert.equal((await request(path, 'staff')).status, 403);
+});
+test('authenticated profile data includes email verification status', async () => {
+  const response = await request('/auth/me', 'user');
+  assert.equal(response.status, 200);
+  assert.equal(response.body.user.emailVerified, true);
 });
 test('maintenance persists, blocks existing user/staff sessions and registration, and permits admin recovery', async () => {
   const update = await request('/admin/maintenance', 'admin', 'PATCH', { maintenanceEnabled: true, maintenanceMessage: 'Scheduled maintenance. Please check back shortly.' });

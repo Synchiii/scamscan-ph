@@ -13,7 +13,7 @@ import SiteSettings from '../models/SiteSettings.js';
 
 const router = Router();
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false, message: { message: 'Too many attempts. Please wait 15 minutes and try again.' } });
-const publicUser = (user) => ({ id: user._id, name: user.name, email: user.email, role: user.role, preferences: user.preferences, createdAt: user.createdAt });
+const publicUser = (user) => ({ id: user._id, name: user.name, email: user.email, role: user.role, emailVerified: Boolean(user.emailVerified), preferences: user.preferences, createdAt: user.createdAt });
 const codeHash = (code) => crypto.createHash('sha256').update(code).digest('hex');
 const makeCode = () => String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 
