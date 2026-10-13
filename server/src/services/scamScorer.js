@@ -1,4 +1,4 @@
-const ANALYSIS_VERSION = '2.1.0';
+const ANALYSIS_VERSION = '2.2.0';
 
 const TEXT_SIGNALS = [
   { category: 'credentials', pattern: /\b(send|share|give|provide|enter|submit|ibigay|ipadala|isend|i-send)\b.{0,60}\b(otp|one[- ]?time password|pin|password|cvv|verification code)\b|\b(otp|one[- ]?time password|pin|password|cvv|verification code)\b.{0,45}\b(send|share|give|provide|enter|submit|ibigay|ipadala)\b/i, points: 34, flag: 'Requests a password, OTP, PIN, or verification code' },
@@ -23,6 +23,21 @@ const BRAND_DOMAINS = new Map([
 
 const clamp = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, value));
 const isDomainOrSubdomain = (host, domain) => host === domain || host.endsWith(`.${domain}`);
+
+export function classifyRisk(score) {
+  if (score >= 80) return 'Scam';
+  if (score >= 60) return 'High';
+  if (score >= 40) return 'Warning';
+  if (score >= 20) return 'Low Risk';
+  return 'Safe';
+}
+
+function recommendationFor(score) {
+  if (score >= 60) return 'Do not open links, send money, install remote-access apps, or share passwords and codes. Verify through the organization’s official app, website, or published contact number.';
+  if (score >= 40) return 'Pause before responding. Independently verify the sender, request, and destination domain through an official channel.';
+  if (score >= 20) return 'Some suspicious indicators were detected, but the evidence is not strong enough for a Warning classification. Monitor the conversation, verify the sender through an official channel, and do not share passwords, OTPs, or payment details.';
+  return 'No strong warning signs were detected in the submitted content. This does not prove it is safe; independently verify unexpected requests.';
+}
 
 export function detectLanguage(message) {
   const text = message.toLowerCase();
@@ -106,15 +121,11 @@ export function scoreScamMessage(message) {
   if ((input.match(/\b[A-Z]{4,}\b/g) || []).length >= 2) add('Uses pressure-style capitalization', 4, 'style');
 
   score = clamp(score, 0, 100);
-  const level = score >= 80 ? 'Scam' : score >= 55 ? 'High' : score >= 25 ? 'Warning' : 'Safe';
+  const level = classifyRisk(score);
   const strongest = Math.max(0, ...signals.map((signal) => signal.points));
   const confidence = clamp(Math.round(30 + Math.min(signals.length * 6, 30) + Math.min(strongest, 25) + (urls.length ? 8 : 0) - (input.length < 25 ? 8 : 0)), 20, 95);
   const confidenceLevel = confidence >= 75 ? 'High' : confidence >= 50 ? 'Moderate' : 'Low';
-  const recommendation = score >= 55
-    ? 'Do not open links, send money, install remote-access apps, or share passwords and codes. Verify through the organization’s official app, website, or published contact number.'
-    : score >= 25
-      ? 'Pause before responding. Independently verify the sender, request, and destination domain through an official channel.'
-      : 'No strong warning signs were detected in the submitted content. This does not prove it is safe; independently verify unexpected requests.';
+  const recommendation = recommendationFor(score);
   const explanation = flags.length
     ? `${flags.length} observable signal${flags.length === 1 ? '' : 's'} across ${categories.size} evidence categor${categories.size === 1 ? 'y' : 'ies'} produced this risk estimate. Confidence reflects evidence strength, not certainty of fraud.`
     : 'No strong contextual or URL-structure warning was detected. Confidence is limited because new or previously unknown scams may not match known patterns.';
@@ -142,11 +153,11 @@ export function applyUrlReputation(result, reputation) {
     return { ...local, reputationVerdict: external.verdict, providers: external.providers };
   });
   score = clamp(score, 0, 100);
-  const level = score >= 80 ? 'Scam' : score >= 55 ? 'High' : score >= 25 ? 'Warning' : 'Safe';
+  const level = classifyRisk(score);
   const confidence = clamp(result.confidence + (confirmedThreats ? 12 : 4), 20, 98);
   const confidenceLevel = confidence >= 75 ? 'High' : confidence >= 50 ? 'Moderate' : 'Low';
   const explanation = confirmedThreats
     ? `${result.explanation} ${confirmedThreats} submitted link${confirmedThreats === 1 ? ' was' : 's were'} also flagged by an external security provider.`
     : `${result.explanation} External reputation checks found no listed threat, but that does not prove a link is safe.`;
-  return { ...result, score, level, confidence, confidenceLevel, flags, signals, urls, explanation, externalChecks: { configured: true, checked: reputation.checked, status: confirmedThreats ? 'Threat match found' : 'Completed' } };
+  return { ...result, score, level, confidence, confidenceLevel, flags, signals, urls, explanation, recommendation: recommendationFor(score), externalChecks: { configured: true, checked: reputation.checked, status: confirmedThreats ? 'Threat match found' : 'Completed' } };
 }

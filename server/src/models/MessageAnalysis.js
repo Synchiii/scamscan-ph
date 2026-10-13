@@ -7,7 +7,7 @@ const messageAnalysisSchema = new mongoose.Schema({
   ocrConfidence: { type: Number, min: 0, max: 100, default: null },
   language: { type: String, required: true },
   score: { type: Number, required: true, min: 0, max: 100 },
-  level: { type: String, required: true, enum: ['Safe', 'Warning', 'High', 'Scam'] },
+  level: { type: String, required: true, enum: ['Safe', 'Low Risk', 'Warning', 'High', 'Scam'] },
   confidence: { type: Number, min: 0, max: 100, default: 0 },
   confidenceLevel: { type: String, enum: ['Low', 'Moderate', 'High'], default: 'Low' },
   analysisVersion: { type: String, default: '1.0.0' },

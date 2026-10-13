@@ -33,7 +33,7 @@ router.post('/analyze', requireAuth, async (req, res, next) => {
 router.get('/history', requireAuth, async (req, res, next) => {
   try {
     const limit = 10;
-    const level = ['Safe', 'Warning', 'High', 'Scam'].includes(req.query.level) ? req.query.level : null;
+    const level = ['Safe', 'Low Risk', 'Warning', 'High', 'Scam'].includes(req.query.level) ? req.query.level : null;
     const query = { user: req.user._id, ...(level ? { level } : {}) };
     const total = await MessageAnalysis.countDocuments(query);
     const pages = Math.max(1, Math.ceil(total / limit));

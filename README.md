@@ -12,7 +12,7 @@ It uses React + JSX and HTML through Vite for the frontend, Express for the API,
 | --- | --- |
 | English, Tagalog, Taglish, and slang scam checking | `server/src/services/scamScorer.js` |
 | Urgency, money request, OTP, URL, impersonation, and social-engineering signals | Scam scoring rules and the checker result screen |
-| Scam risk bands: Safe, Warning, High, Scam | Scam scorer and analytics dashboard |
+| Scam risk bands: Safe (0–19), Low Risk — Monitor (20–39), Warning (40–59), High Risk (60–79), Scam Likely (80–100) | Scam scorer and analytics dashboard |
 | Plain-language result and recommendation | Scam checker result card |
 | Total checks, scam/safe split, scam traits, language analytics | Scam analytics page |
 | Registration, login, logout, reset password | Pending registration OTP, MongoDB `users` collection, `/api/auth` endpoints, three-attempt login lock |

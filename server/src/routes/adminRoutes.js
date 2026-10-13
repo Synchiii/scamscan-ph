@@ -102,7 +102,7 @@ router.get('/reports', requireAdmin, async (_req, res, next) => {
   try {
     const page = Math.max(1, Math.min(10000, Number.parseInt(_req.query.page, 10) || 1));
     const limit = 20;
-    const level = ['Safe', 'Warning', 'High', 'Scam'].includes(_req.query.level) ? _req.query.level : null;
+    const level = ['Safe', 'Low Risk', 'Warning', 'High', 'Scam'].includes(_req.query.level) ? _req.query.level : null;
     const registeredIds = await User.distinct('_id', registeredAccounts);
     const query = { user: { $in: registeredIds }, ...(level ? { level } : {}) };
     const [reports, total] = await Promise.all([
@@ -122,7 +122,7 @@ router.patch('/reports/:id', requireAdmin, async (req, res, next) => {
     const explanation = String(req.body.explanation || '').trim();
     const recommendation = String(req.body.recommendation || '').trim();
     const note = String(req.body.note || '').trim();
-    if (!Number.isInteger(score) || score < 0 || score > 100 || !['Safe', 'Warning', 'High', 'Scam'].includes(level)) return res.status(400).json({ message: 'Enter a valid score and risk level.' });
+    if (!Number.isInteger(score) || score < 0 || score > 100 || !['Safe', 'Low Risk', 'Warning', 'High', 'Scam'].includes(level)) return res.status(400).json({ message: 'Enter a valid score and risk level.' });
     if (explanation.length < 10 || explanation.length > 1000 || recommendation.length < 10 || recommendation.length > 1000 || note.length > 500) return res.status(400).json({ message: 'Explanation and recommendation must be 10–1,000 characters; review note at most 500.' });
     report.score = score;
     report.level = level;

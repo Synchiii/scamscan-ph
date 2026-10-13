@@ -1,0 +1,12 @@
+.risk-badge.low-risk,
+.console-chip.low-risk {
+  border-color: #3b7382;
+  color: #a8e4eb;
+  background: #193c47;
+}
+
+.detector-result-card.low-risk .detector-risk-orb {
+  border-color: #62c9df;
+  background: #173f4f50;
+  box-shadow: 0 0 0 9px #26758b25;
+}

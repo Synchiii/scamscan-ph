@@ -9,6 +9,7 @@ import './member-workflow.css';
 import './studio.css';
 import './floating-chat.css';
 import './management-console.css';
+import './risk.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode><App /></StrictMode>,
