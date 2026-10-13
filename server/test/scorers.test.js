@@ -29,6 +29,14 @@ test('scam scorer uses the documented five risk bands', () => {
   assert.equal(classifyRisk(100), 'Scam');
 });
 
+test('Filipino first-payment request is classified as Low Risk — Monitor', () => {
+  const result = scoreScamMessage('May kailangan kang bayarang delivery fee sa GCash bago namin maihatid ang package mo.');
+  assert.equal(result.score, 23);
+  assert.equal(result.level, 'Low Risk');
+  assert.ok(result.flags.includes('Requests a money transfer or payment'));
+  assert.match(result.recommendation, /Monitor the conversation/i);
+});
+
 test('external reputation raises risk only for a provider threat match', () => {
   const local = scoreScamMessage('Review this link https://example.test/account');
   const enriched = applyUrlReputation(local, { configured: true, checked: 1, results: [{ host: 'example.test', verdict: 'Malicious', providers: [{ provider: 'VirusTotal', verdict: 'Malicious', malicious: 4, suspicious: 1, harmless: 20 }] }] });
