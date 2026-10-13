@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import jwt from 'jsonwebtoken';
-import { scoreScamMessage, detectLanguage } from '../src/services/scamScorer.js';
+import { applyUrlReputation, scoreScamMessage, detectLanguage } from '../src/services/scamScorer.js';
 import { scoreSecurityEvent } from '../src/services/threatScorer.js';
 import { getSessionDurationMs, signSession } from '../src/utils/auth.js';
 import { validEmail, validOtp, validPassword } from '../src/utils/validation.js';
@@ -12,8 +12,17 @@ test('scam scorer flags OTP, prize, urgency and URL', () => {
   assert.ok(result.score >= 80);
   assert.ok(result.flags.includes('Requests a password, OTP, PIN, or verification code'));
   assert.equal(result.confidenceLevel, 'High');
-  assert.equal(result.analysisVersion, '2.0.0');
+  assert.equal(result.analysisVersion, '2.1.0');
   assert.equal(result.urls[0].verdict, 'Suspicious');
+});
+
+test('external reputation raises risk only for a provider threat match', () => {
+  const local = scoreScamMessage('Review this link https://example.test/account');
+  const enriched = applyUrlReputation(local, { configured: true, checked: 1, results: [{ host: 'example.test', verdict: 'Malicious', providers: [{ provider: 'VirusTotal', verdict: 'Malicious', malicious: 4, suspicious: 1, harmless: 20 }] }] });
+  assert.ok(enriched.score > local.score);
+  assert.equal(enriched.externalChecks.status, 'Threat match found');
+  assert.equal(enriched.urls[0].reputationVerdict, 'Malicious');
+  assert.ok(enriched.flags.some((flag) => flag.includes('External security provider')));
 });
 
 test('language detector recognizes Taglish', () => {

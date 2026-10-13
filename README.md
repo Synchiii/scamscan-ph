@@ -121,6 +121,8 @@ JWT sessions expire after **30 minutes** by default for members, staff, and admi
 
    For MongoDB Atlas, replace only `MONGODB_URI` with the connection string from Atlas. Never commit this file or share its password.
 
+   Optional URL reputation checks can be enabled with `VIRUSTOTAL_API_KEY` and/or `GOOGLE_WEB_RISK_API_KEY`. Add the same variables to the deployed backend environment. Never add these secrets to Vercel client variables or use a `VITE_` prefix. The detector still works with local contextual and structural checks when neither provider is configured, and provider timeouts do not block saving a result.
+
    Generate a long `JWT_SECRET` with this command, then paste the output into `server/.env`:
 
    ```powershell

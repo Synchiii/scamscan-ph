@@ -52,7 +52,7 @@ export const api = {
   changePassword: (currentPassword, newPassword, code) => request('/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword, code }) }),
   forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
   resetPassword: (email, code, password) => request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email, code, password }) }),
-  analyzeMessage: (message) => request('/scam/analyze', { method: 'POST', body: JSON.stringify({ message }) }),
+  analyzeMessage: (message, metadata = {}) => request('/scam/analyze', { method: 'POST', body: JSON.stringify({ message, ...metadata }) }),
   getScamHistory: ({ page = 1, level = 'All' } = {}) => request(`/scam/history?page=${page}${level === 'All' ? '' : `&level=${encodeURIComponent(level)}`}`),
   deleteScan: (id) => request(`/scam/history/${id}`, { method: 'DELETE' }),
   getScamAnalytics: () => request('/scam/analytics'),

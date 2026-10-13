@@ -2,7 +2,8 @@ import { Router } from 'express';
 import MessageAnalysis from '../models/MessageAnalysis.js';
 import User from '../models/User.js';
 import { registeredAccounts } from '../utils/access.js';
-import { scoreScamMessage } from '../services/scamScorer.js';
+import { applyUrlReputation, extractUrls, scoreScamMessage } from '../services/scamScorer.js';
+import { checkUrlReputation } from '../services/urlReputation.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { recordAudit } from '../services/auditService.js';
 
@@ -11,12 +12,21 @@ const router = Router();
 router.post('/analyze', requireAuth, async (req, res, next) => {
   try {
     const message = String(req.body.message || '').trim();
+    const sourceType = ['text', 'url', 'image'].includes(req.body.sourceType) ? req.body.sourceType : 'text';
+    const ocrConfidence = sourceType === 'image' && Number.isFinite(Number(req.body.ocrConfidence)) ? Math.max(0, Math.min(100, Math.round(Number(req.body.ocrConfidence)))) : null;
     if (message.length < 10) return res.status(400).json({ message: 'Enter a message with at least 10 characters.' });
     if (message.length > 5000) return res.status(400).json({ message: 'Messages may not exceed 5,000 characters.' });
-    const result = scoreScamMessage(message);
-    const saved = await MessageAnalysis.create({ user: req.user._id, message, ...result });
+    const localResult = scoreScamMessage(message);
+    const reputation = await checkUrlReputation(extractUrls(message));
+    const result = applyUrlReputation(localResult, reputation);
+    if (ocrConfidence !== null && ocrConfidence < 60) {
+      result.confidence = Math.max(20, result.confidence - Math.round((60 - ocrConfidence) / 2));
+      result.confidenceLevel = result.confidence >= 75 ? 'High' : result.confidence >= 50 ? 'Moderate' : 'Low';
+      result.explanation += ' OCR confidence was limited, so verify the extracted screenshot text before acting.';
+    }
+    const saved = await MessageAnalysis.create({ user: req.user._id, message, sourceType, ocrConfidence, ...result });
     await recordAudit(req, 'scan.created', { targetType: 'analysis', targetId: saved._id, details: `${result.level} risk score ${result.score}` });
-    res.status(201).json({ id: saved._id, ...result, createdAt: saved.createdAt });
+    res.status(201).json({ id: saved._id, sourceType, ocrConfidence, ...result, createdAt: saved.createdAt });
   } catch (error) { next(error); }
 });
 
@@ -28,7 +38,7 @@ router.get('/history', requireAuth, async (req, res, next) => {
     const total = await MessageAnalysis.countDocuments(query);
     const pages = Math.max(1, Math.ceil(total / limit));
     const page = Math.min(pages, Math.max(1, Number.parseInt(req.query.page, 10) || 1));
-    const analyses = await MessageAnalysis.find(query).select('message language score level confidence confidenceLevel analysisVersion flags signals urls explanation recommendation createdAt updatedAt').sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean();
+    const analyses = await MessageAnalysis.find(query).select('message sourceType ocrConfidence language score level confidence confidenceLevel analysisVersion flags signals urls externalChecks explanation recommendation createdAt updatedAt').sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean();
     res.json({ analyses, total, page, pages });
   } catch (error) { next(error); }
 });

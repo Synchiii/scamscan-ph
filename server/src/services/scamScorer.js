@@ -1,4 +1,4 @@
-const ANALYSIS_VERSION = '2.0.0';
+const ANALYSIS_VERSION = '2.1.0';
 
 const TEXT_SIGNALS = [
   { category: 'credentials', pattern: /\b(send|share|give|provide|enter|submit|ibigay|ipadala|isend|i-send)\b.{0,60}\b(otp|one[- ]?time password|pin|password|cvv|verification code)\b|\b(otp|one[- ]?time password|pin|password|cvv|verification code)\b.{0,45}\b(send|share|give|provide|enter|submit|ibigay|ipadala)\b/i, points: 34, flag: 'Requests a password, OTP, PIN, or verification code' },
@@ -120,4 +120,33 @@ export function scoreScamMessage(message) {
     : 'No strong contextual or URL-structure warning was detected. Confidence is limited because new or previously unknown scams may not match known patterns.';
 
   return { score, level, confidence, confidenceLevel, analysisVersion: ANALYSIS_VERSION, flags, signals, urls, language: detectLanguage(input), recommendation, explanation };
+}
+
+export function applyUrlReputation(result, reputation) {
+  if (!reputation?.configured || !reputation.results?.length) return { ...result, externalChecks: { configured: Boolean(reputation?.configured), checked: 0, status: reputation?.configured ? 'No URL found' : 'Not configured' } };
+  const flags = [...result.flags];
+  const signals = [...result.signals];
+  let score = result.score;
+  let confirmedThreats = 0;
+  const urls = result.urls.map((local) => {
+    const external = reputation.results.find((item) => item.host === local.host);
+    if (!external) return local;
+    if (external.verdict === 'Malicious') {
+      const label = `External security provider flagged ${local.host}`;
+      if (!flags.includes(label)) { flags.push(label); signals.push({ label, points: 45, category: 'reputation', evidence: external.providers.filter((item) => item.verdict === 'Malicious').map((item) => item.provider).join(', ') }); score += 45; }
+      confirmedThreats += 1;
+    } else if (external.verdict === 'Suspicious') {
+      const label = `External security provider marked ${local.host} suspicious`;
+      if (!flags.includes(label)) { flags.push(label); signals.push({ label, points: 25, category: 'reputation', evidence: external.providers.filter((item) => item.verdict === 'Suspicious').map((item) => item.provider).join(', ') }); score += 25; }
+    }
+    return { ...local, reputationVerdict: external.verdict, providers: external.providers };
+  });
+  score = clamp(score, 0, 100);
+  const level = score >= 80 ? 'Scam' : score >= 55 ? 'High' : score >= 25 ? 'Warning' : 'Safe';
+  const confidence = clamp(result.confidence + (confirmedThreats ? 12 : 4), 20, 98);
+  const confidenceLevel = confidence >= 75 ? 'High' : confidence >= 50 ? 'Moderate' : 'Low';
+  const explanation = confirmedThreats
+    ? `${result.explanation} ${confirmedThreats} submitted link${confirmedThreats === 1 ? ' was' : 's were'} also flagged by an external security provider.`
+    : `${result.explanation} External reputation checks found no listed threat, but that does not prove a link is safe.`;
+  return { ...result, score, level, confidence, confidenceLevel, flags, signals, urls, explanation, externalChecks: { configured: true, checked: reputation.checked, status: confirmedThreats ? 'Threat match found' : 'Completed' } };
 }
