@@ -10,3 +10,30 @@
   background: #173f4f50;
   box-shadow: 0 0 0 9px #26758b25;
 }
+
+.detector-submitted-content {
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 13px 15px;
+  border: 1px solid #29465a;
+  border-radius: 10px;
+  background: #0c1929;
+}
+
+.detector-submitted-content b {
+  display: block;
+  margin-bottom: 7px;
+  color: #d0e4ee;
+  font-size: 13px;
+}
+
+.detector-submitted-content p {
+  max-height: 110px;
+  margin: 0;
+  overflow: auto;
+  color: #a7c0d0;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

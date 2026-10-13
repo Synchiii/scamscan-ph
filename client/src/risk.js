@@ -6,6 +6,7 @@ export function riskClass(level) {
 
 export function riskLabel(level) {
   if (level === 'Low Risk') return 'Low Risk — Monitor';
+  if (level === 'High') return 'High Risk';
   if (level === 'Scam') return 'Scam Likely';
   return level;
 }

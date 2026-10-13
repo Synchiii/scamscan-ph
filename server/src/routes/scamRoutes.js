@@ -26,7 +26,7 @@ router.post('/analyze', requireAuth, async (req, res, next) => {
     }
     const saved = await MessageAnalysis.create({ user: req.user._id, message, sourceType, ocrConfidence, ...result });
     await recordAudit(req, 'scan.created', { targetType: 'analysis', targetId: saved._id, details: `${result.level} risk score ${result.score}` });
-    res.status(201).json({ id: saved._id, sourceType, ocrConfidence, ...result, createdAt: saved.createdAt });
+    res.status(201).json({ id: saved._id, message, sourceType, ocrConfidence, ...result, createdAt: saved.createdAt });
   } catch (error) { next(error); }
 });
 

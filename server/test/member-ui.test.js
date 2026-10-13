@@ -141,8 +141,9 @@ test('detector keeps input and result cards with accessible message, link and im
     if (mode === 'url') { assert.match(html, /type="url"/); assert.match(html, /We do not visit the website/); }
     if (mode === 'image') assert.match(html, /accept="image\/png,image\/jpeg,image\/webp"/);
   }
-  const html = renderToStaticMarkup(React.createElement(detector.default, detectorProps({ analysis: { score: 78, level: 'High', explanation: 'Sensitive data requested.', flags: ['OTP', 'Urgency', 'Prize', 'Short link'], recommendation: 'Do not send your OTP.' } })));
-  assert.match(html, /78/); assert.match(html, /High risk/); assert.match(html, /1 more signals/);
+  const html = renderToStaticMarkup(React.createElement(detector.default, detectorProps({ analysis: { score: 78, level: 'High', message: 'Send your OTP now.', explanation: 'Sensitive data requested.', flags: ['OTP', 'Urgency', 'Prize', 'Short link'], recommendation: 'Do not send your OTP.' } })));
+  assert.match(html, /78/); assert.match(html, /High Risk/); assert.match(html, /1 more signals/);
+  assert.match(html, /Submitted content/); assert.match(html, /Send your OTP now/);
   assert.match(html, /Do not send your OTP/); assert.match(html, /A score is guidance, not proof of safety/);
 });
 test('recovery puts private and saved requests first, with collapsed guides and private replies', () => {
