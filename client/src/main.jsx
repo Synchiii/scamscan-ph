@@ -5,6 +5,7 @@ import './styles.css';
 import './enhancements.css';
 import './workflow.css';
 import './operations.css';
+import './safety-updates.css';
 import './member-workflow.css';
 import './studio.css';
 import './floating-chat.css';

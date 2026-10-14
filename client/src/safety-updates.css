@@ -1,0 +1,34 @@
+.published-content h2 {
+  margin: 10px 0 8px;
+}
+
+.published-content-intro {
+  max-width: 720px;
+  margin: 0 0 22px;
+  color: #91a8ba;
+  line-height: 1.65;
+}
+
+.safety-updates-page .published-content {
+  margin-top: 0;
+}
+
+.safety-updates-page .published-content > .eyebrow,
+.safety-updates-page .published-content > h2,
+.safety-updates-page .published-content > .published-content-intro {
+  display: none;
+}
+
+.safety-updates-empty {
+  max-width: 720px;
+}
+
+.safety-updates-empty h2 {
+  margin-top: 0;
+}
+
+.safety-updates-empty p {
+  margin-bottom: 0;
+  color: #91a8ba;
+  line-height: 1.65;
+}
