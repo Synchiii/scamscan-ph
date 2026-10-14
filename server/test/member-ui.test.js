@@ -226,7 +226,7 @@ test('Staff and Admin dashboards show role-appropriate tools, with no introducto
 });
 test('management navigation groups links and preserves selection in account records and popup chat', () => {
   const calls = [];
-  const entries = [['staffOverview', 'Staff Overview'], ['adminUsers', 'Manage Users'], ['contents', 'Manage Content'], ['chat', 'Member Chat'], ['adminSupport', 'Customer Support'], ['profile', 'My Profile'], ['settings', 'Security Settings']];
+  const entries = [['staffOverview', 'Staff Overview'], ['adminUsers', 'Manage Users'], ['contents', 'Publish Updates'], ['chat', 'Member Chat'], ['adminSupport', 'Customer Support'], ['profile', 'My Profile'], ['settings', 'Security Settings']];
   const tree = consoleUI.ManagementSidebar({ entries, page: 'adminAccountDetails', chatOpen: false, go: (id) => calls.push(id), role: 'staff' });
   const buttons = elements(tree, (node) => node.type === 'button');
   assert.equal(buttons.length, entries.length);
