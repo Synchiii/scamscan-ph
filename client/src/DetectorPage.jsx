@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import UiIcon from './UiIcon';
 import { riskClass, riskLabel } from './risk';
+import ReportAnalysis from './ReportAnalysis';
 
 const example = 'Congratulations! Nanalo ka ng ₱50,000. Send your OTP and click bit.ly/claim-now to claim your prize today.';
 const modes = [['text', 'Message', 'message'], ['url', 'Link', 'link'], ['image', 'Image', 'image']];
@@ -23,6 +24,11 @@ export default function DetectorPage({ scanMode, setScanMode, message, setMessag
     setFileError(''); setImageFile(file);
   }
   const title = scanMode === 'url' ? 'Paste a website link' : scanMode === 'image' ? 'Upload a screenshot' : 'Paste the message';
+  if (analysis) return <section className="detector-studio detector-complete-report" aria-live="polite">
+    <div className="detector-complete-heading"><div><span className="label">SCAN COMPLETE · SAVED</span><h1>Full scan analysis</h1><p>Review every detected signal and the recommended safety action.</p></div><div className="detector-complete-actions"><button type="button" className="secondary" onClick={clearAnalysis}>← Scan another</button><button type="button" className="primary" onClick={() => go('history')}>View Scan History</button></div></div>
+    <ReportAnalysis report={analysis} />
+    <p className="detector-full-disclaimer"><UiIcon name="shield" size={15} />A score is guidance, not proof that content is safe or fraudulent. Verify unexpected requests through an official channel.</p>
+  </section>;
   return <section className="detector-studio">
     <h1 className="visually-hidden">Scam detector</h1>
     <div className="detector-studio-grid">
