@@ -142,9 +142,11 @@ test('detector keeps input and result cards with accessible message, link and im
     if (mode === 'image') assert.match(html, /accept="image\/png,image\/jpeg,image\/webp"/);
   }
   const html = renderToStaticMarkup(React.createElement(detector.default, detectorProps({ analysis: { score: 78, level: 'High', message: 'Send your OTP now.', explanation: 'Sensitive data requested.', flags: ['OTP', 'Urgency', 'Prize', 'Short link'], recommendation: 'Do not send your OTP.' } })));
-  assert.match(html, /78/); assert.match(html, /High Risk/); assert.match(html, /1 more signals/);
-  assert.match(html, /Submitted content/); assert.match(html, /Send your OTP now/);
-  assert.match(html, /Do not send your OTP/); assert.match(html, /A score is guidance, not proof of safety/);
+  assert.match(html, /Full scan analysis/); assert.match(html, /78/); assert.match(html, /High Risk/);
+  assert.match(html, /OTP/); assert.match(html, /Urgency/); assert.match(html, /Prize/); assert.match(html, /Short link/);
+  assert.match(html, /SUBMITTED CONTENT/i); assert.match(html, /Send your OTP now/);
+  assert.match(html, /Do not send your OTP/); assert.match(html, /A score is guidance, not proof that content is safe or fraudulent/);
+  assert.match(html, /Scan another/); assert.match(html, /View Scan History/);
 });
 test('recovery puts private and saved requests first, with collapsed guides and private replies', () => {
   const html = renderToStaticMarkup(React.createElement(recovery.default, { sendHelp: () => {}, busy: false, go: () => {}, mySupport: [{ _id: 'ticket', subject: 'Payment concern', message: 'Please review my payment.', status: 'in-progress', createdAt: '2026-10-07T03:00:00Z', replies: [{ _id: 'reply', byName: 'Support Staff', body: 'Contact your provider.', createdAt: '2026-10-07T04:00:00Z' }] }] }));
