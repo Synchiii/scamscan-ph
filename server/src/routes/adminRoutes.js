@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import User from '../models/User.js';
+import PendingRegistration from '../models/PendingRegistration.js';
 import MessageAnalysis from '../models/MessageAnalysis.js';
 import SecurityEvent from '../models/SecurityEvent.js';
 import SupportMessage from '../models/SupportMessage.js';
@@ -9,7 +10,7 @@ import { chatMediaStore } from '../services/chatMediaStore.js';
 import AuditLog from '../models/AuditLog.js';
 import { requireAuth, requireAdmin, requireStaff } from '../middleware/auth.js';
 import { recordAudit } from '../services/auditService.js';
-import { sendAccountSuspensionEmail, sendSupportReplyEmail } from '../services/emailService.js';
+import { sendAccountSuspensionEmail, sendSupportReplyEmail, sendStaffApplicationDecisionEmail } from '../services/emailService.js';
 
 import SiteSettings from '../models/SiteSettings.js';
 import { registeredAccounts, managedAccountQuery, canSetRole } from '../utils/access.js';
@@ -39,6 +40,34 @@ router.get('/users', async (req, res, next) => {
   try {
     const users = await User.find(managedAccountQuery(req.user)).select('name email role emailVerified isActive suspensionReason suspendedAt createdAt updatedAt').sort({ createdAt: -1 }).lean();
     res.json({ users: users.map((user) => ({ ...user, id: user._id })) });
+  } catch (error) { next(error); }
+});
+
+router.get('/staff-applications', requireAdmin, async (_req, res, next) => {
+  try {
+    const applications = await PendingRegistration.find({ requestedRole: 'staff', approvalStatus: 'pending', emailVerifiedAt: { $exists: true } })
+      .select('name email emailVerifiedAt createdAt expiresAt').sort({ emailVerifiedAt: 1 }).lean();
+    res.json({ applications });
+  } catch (error) { next(error); }
+});
+
+router.patch('/staff-applications/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const decision = String(req.body.decision || '').toLowerCase();
+    const reason = String(req.body.reason || '').trim();
+    if (!['approve', 'reject'].includes(decision)) return res.status(400).json({ message: 'Choose approve or reject.' });
+    if (decision === 'reject' && (reason.length < 10 || reason.length > 500)) return res.status(400).json({ message: 'Enter a rejection reason between 10 and 500 characters.' });
+    const application = await PendingRegistration.findOne({ _id: req.params.id, requestedRole: 'staff', approvalStatus: 'pending', emailVerifiedAt: { $exists: true } }).select('+passwordHash');
+    if (!application) return res.status(404).json({ message: 'Pending staff application not found.' });
+    let staff;
+    if (decision === 'approve') {
+      if (await User.exists({ email: application.email })) return res.status(409).json({ message: 'An account already uses this email address.' });
+      staff = await User.create({ name: application.name, email: application.email, passwordHash: application.passwordHash, emailVerified: true, role: 'staff', isActive: true });
+    }
+    await PendingRegistration.deleteOne({ _id: application._id });
+    await recordAudit(req, `admin.staff_application_${decision}d`, { targetType: decision === 'approve' ? 'user' : 'pending_registration', targetId: staff?._id || application._id, details: `${application.email}${reason ? ` — ${reason}` : ''}` });
+    const notificationEmailed = await sendStaffApplicationDecisionEmail({ to: application.email, name: application.name, approved: decision === 'approve', reason }).catch(() => false);
+    res.json({ message: decision === 'approve' ? 'Staff account approved and activated.' : 'Staff application rejected.', staff: staff ? publicUser(staff) : null, notificationEmailed });
   } catch (error) { next(error); }
 });
 
