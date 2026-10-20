@@ -9,6 +9,7 @@ let authGeneration = 0;
 export function invalidateRequests() { authGeneration += 1; }
 const PUBLIC_AUTH_PATHS = new Set([
   '/auth/register',
+  '/auth/staff-register',
   '/auth/verify-email',
   '/auth/resend-verification',
   '/auth/login',
@@ -45,6 +46,7 @@ async function request(path, options = {}) {
 
 export const api = {
   register: (data) => request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  registerStaff: (data) => request('/auth/staff-register', { method: 'POST', body: JSON.stringify(data) }),
   verifyEmail: (email, code) => request('/auth/verify-email', { method: 'POST', body: JSON.stringify({ email, code }) }),
   resendVerification: (email) => request('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) }),
   login: (data) => request('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
@@ -62,6 +64,8 @@ export const api = {
   deleteScan: (id) => request(`/scam/history/${id}`, { method: 'DELETE' }),
   getScamAnalytics: () => request('/scam/analytics'),
   getUsers: () => request('/admin/users'),
+  getStaffApplications: () => request('/admin/staff-applications'),
+  decideStaffApplication: (id, decision, reason = '') => request(`/admin/staff-applications/${id}`, { method: 'PATCH', body: JSON.stringify({ decision, reason }) }),
   updateUser: (id, data) => request(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteUser: (id) => request(`/admin/users/${id}`, { method: 'DELETE' }),
   getUserDetails: (id) => request(`/admin/users/${id}/details`),
