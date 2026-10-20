@@ -157,9 +157,10 @@ test('recovery puts private and saved requests first, with collapsed guides and 
   assert.ok(!html.includes(' open=""'));
   assert.match(html, /name="subject"/); assert.match(html, /name="message"/);
 });
-test('profile adds identity and security cards while preserving the name update form', () => {
-  const html = renderToStaticMarkup(React.createElement(profile.default, { user: { id: 'member', name: 'Alex Student', email: 'alex@example.com', emailVerified: true, createdAt: '2026-10-01T00:00:00Z', role: 'user' }, scanTotal: 11, saveProfile: () => {}, busy: false, go: () => {} }));
+test('profile adds identity, security, and email-confirmed name change controls', () => {
+  const html = renderToStaticMarkup(React.createElement(profile.default, { user: { id: 'member', name: 'Alex Student', email: 'alex@example.com', emailVerified: true, createdAt: '2026-10-01T00:00:00Z', role: 'user' }, scanTotal: 11, requestProfileChange: () => {}, confirmProfileChange: () => {}, busy: false, go: () => {} }));
   assert.ok(html.includes('profile-cover')); assert.ok(html.includes('profile-initials">AS'));
+  assert.match(html, /Send confirmation code/);
   assert.match(html, /Email verified/); assert.match(html, /Saved reports/);
   assert.match(html, /name="name"/); assert.match(html, /readonly=""/);
   assert.match(html, /Security settings/); assert.match(html, /30 minutes/);
