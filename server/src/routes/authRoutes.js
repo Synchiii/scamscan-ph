@@ -174,12 +174,48 @@ router.post('/logout', requireAuth, async (req, res) => {
 });
 router.get('/me', requireAuth, (req, res) => res.json({ user: publicUser(req.user), sessionExpiresAt: req.sessionExpiresAt }));
 
-router.patch('/profile', requireAuth, async (req, res, next) => {
+router.post('/profile/request-code', requireAuth, authLimiter, async (req, res, next) => {
   try {
     const name = normalizePersonName(req.body.name);
     if (!validPersonName(name)) return res.status(400).json({ message: personNameHelp });
-    req.user.name = name;
-    await req.user.save();
+    if (name === req.user.name) return res.status(400).json({ message: 'Enter a different name before requesting a code.' });
+    if (!req.user.emailVerified) return res.status(403).json({ message: 'Verify your email before changing your name.' });
+    if (process.env.NODE_ENV === 'production' && !emailConfigured()) return res.status(503).json({ message: 'Name-change email verification is temporarily unavailable.' });
+    const user = await User.findById(req.user._id).select('+profileChangeCodeHash +profileChangeCodeExpires +profileChangeCodeAttempts +profileChangeCodeLastSentAt +pendingProfileName');
+    if (!user) return res.status(404).json({ message: 'Account not found.' });
+    if (user.profileChangeCodeLastSentAt && Date.now() - user.profileChangeCodeLastSentAt.getTime() < 60_000) return res.status(429).json({ message: 'Please wait one minute before requesting another code.' });
+    const code = makeCode();
+    user.pendingProfileName = name;
+    user.profileChangeCodeHash = codeHash(code);
+    user.profileChangeCodeExpires = new Date(Date.now() + 10 * 60_000);
+    user.profileChangeCodeAttempts = 0;
+    user.profileChangeCodeLastSentAt = new Date();
+    await user.save();
+    await sendOtpEmail({ to: user.email, name: user.name, code, purpose: 'profile' });
+    await recordAudit(req, 'user.profile_change_code_requested', { targetType: 'user', targetId: user._id });
+    return res.json(devCode({ message: `A six-digit confirmation code was sent to ${user.email}. It expires in 10 minutes.` }, code));
+  } catch (error) { next(error); }
+});
+
+router.patch('/profile', requireAuth, authLimiter, async (req, res, next) => {
+  try {
+    const code = String(req.body.code || '').trim();
+    if (!validOtp(code)) return res.status(400).json({ message: 'Enter the six-digit confirmation code sent to your email.' });
+    const user = await User.findById(req.user._id).select('+profileChangeCodeHash +profileChangeCodeExpires +profileChangeCodeAttempts +profileChangeCodeLastSentAt +pendingProfileName');
+    if (!user?.pendingProfileName || user.profileChangeCodeAttempts >= 5 || !user.profileChangeCodeExpires || user.profileChangeCodeExpires <= new Date()) return res.status(400).json({ message: 'This confirmation code is invalid or expired. Request a new code.' });
+    if (user.profileChangeCodeHash !== codeHash(code)) {
+      user.profileChangeCodeAttempts += 1;
+      await user.save();
+      return res.status(400).json({ message: 'That confirmation code is invalid.' });
+    }
+    user.name = user.pendingProfileName;
+    user.pendingProfileName = undefined;
+    user.profileChangeCodeHash = undefined;
+    user.profileChangeCodeExpires = undefined;
+    user.profileChangeCodeAttempts = 0;
+    user.profileChangeCodeLastSentAt = undefined;
+    await user.save();
+    req.user = user;
     await recordAudit(req, 'user.profile_updated', { targetType: 'user', targetId: req.user._id });
     return res.json({ user: publicUser(req.user) });
   } catch (error) { next(error); }
