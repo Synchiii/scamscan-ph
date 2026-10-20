@@ -135,7 +135,8 @@ router.post('/login', authLimiter, async (req, res, next) => {
     if (!validEmail(email) || password.length > 128) return res.status(400).json({ message: 'Enter a valid email and password.' });
     const user = await User.findOne({ email, isGuest: { $ne: true } }).select('+passwordHash +failedLoginAttempts +loginLockedUntil +loginLockLevel');
     if (user?.loginLockedUntil && user.loginLockedUntil > new Date()) return lockResponse(res, user.loginLockedUntil);
-    if (!user || !user.isActive || !(await bcrypt.compare(password, user.passwordHash))) {
+    const passwordMatches = user ? await bcrypt.compare(password, user.passwordHash) : false;
+    if (!user || !passwordMatches) {
       if (user?.isActive) {
         const updated = await User.findByIdAndUpdate(user._id, { $inc: { failedLoginAttempts: 1 } }, { new: true }).select('+failedLoginAttempts +loginLockLevel');
         const attempts = updated.failedLoginAttempts;
@@ -147,6 +148,10 @@ router.post('/login', authLimiter, async (req, res, next) => {
         return res.status(401).json({ message: `Incorrect email or password. ${3 - attempts} attempt${attempts === 2 ? '' : 's'} remaining before a ${lockMinutes}-minute lock.` });
       }
       return res.status(401).json({ message: 'Incorrect email or password.' });
+    }
+    if (!user.isActive) {
+      const reason = user.suspensionReason || 'Please contact ScamScan support for more information.';
+      return res.status(403).json({ code: 'ACCOUNT_SUSPENDED', message: `Your account has been suspended. Reason: ${reason}` });
     }
     if (user.failedLoginAttempts || user.loginLockedUntil || user.loginLockLevel) await User.updateOne({ _id: user._id }, { $set: { failedLoginAttempts: 0, loginLockLevel: 0 }, $unset: { loginLockedUntil: 1 } });
     if (!user.emailVerified) return res.status(403).json({ message: 'Verify your email before signing in.', needsVerification: true, email: user.email });
