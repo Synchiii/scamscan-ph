@@ -80,3 +80,13 @@ export function sendAccountSuspensionEmail({ to, name, reason }) {
     text: `Hello ${name},\n\nYour ScamScan account has been suspended.\n\nReason: ${reason}\n\nIf you believe this was a mistake, contact ScamScan support or your system administrator.`,
   });
 }
+
+export function sendStaffApplicationDecisionEmail({ to, name, approved, reason = '' }) {
+  return sendEmail({
+    to,
+    subject: approved ? 'Your ScamScan staff account is approved' : 'Update on your ScamScan staff application',
+    text: approved
+      ? `Hello ${name},\n\nAn administrator approved your ScamScan staff account. You may now sign in using your verified email and password.`
+      : `Hello ${name},\n\nAn administrator did not approve your ScamScan staff application.${reason ? `\n\nReason: ${reason}` : ''}\n\nContact the ScamScan administrator if you need clarification.`,
+  });
+}
