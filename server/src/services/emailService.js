@@ -71,3 +71,11 @@ export function sendSupportReplyEmail({ to, name, subject, reply }) {
     text: `Hello ${name},\n\n${reply}\n\nYou can also read this reply in your ScamScan Help Center.`,
   });
 }
+
+export function sendAccountSuspensionEmail({ to, name, reason }) {
+  return sendEmail({
+    to,
+    subject: 'Your ScamScan account has been suspended',
+    text: `Hello ${name},\n\nYour ScamScan account has been suspended.\n\nReason: ${reason}\n\nIf you believe this was a mistake, contact ScamScan support or your system administrator.`,
+  });
+}
