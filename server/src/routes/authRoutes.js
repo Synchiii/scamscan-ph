@@ -8,7 +8,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { clearSessionCookie, setSessionCookie } from '../utils/auth.js';
 import { sendOtpEmail, emailConfigured } from '../services/emailService.js';
 import { recordAudit } from '../services/auditService.js';
-import { validEmail, validPassword, validOtp, passwordHelp } from '../utils/validation.js';
+import { validEmail, validPhinmaStudentEmail, validPassword, validOtp, passwordHelp } from '../utils/validation.js';
 import { normalizePersonName, validPersonName, personNameHelp } from '../utils/personName.js';
 import SiteSettings from '../models/SiteSettings.js';
 
@@ -49,13 +49,14 @@ function lockResponse(res, until, lockMinutes) {
   return res.status(429).json({ message: `Too many incorrect passwords. Try again after ${minutes} minute${minutes === 1 ? '' : 's'}.`, retryAfter: seconds });
 }
 
-router.post('/register', authLimiter, async (req, res, next) => {
+async function beginRegistration(req, res, next, requestedRole) {
   try {
     const name = normalizePersonName(req.body.name);
     const email = String(req.body.email || '').trim().toLowerCase();
     const password = req.body.password;
     if (!validPersonName(name)) return res.status(400).json({ message: personNameHelp });
-    if (!validEmail(email)) return res.status(400).json({ message: 'Enter a valid email address.' });
+    if (requestedRole === 'user' && !validPhinmaStudentEmail(email)) return res.status(400).json({ message: 'Student accounts require an official @phinmaed.com email address.' });
+    if (requestedRole === 'staff' && !validEmail(email)) return res.status(400).json({ message: 'Enter a valid staff email address.' });
     if (!validPassword(password)) return res.status(400).json({ message: passwordHelp });
     if (await User.exists({ email })) return res.status(409).json({ message: 'An account already uses that email address.' });
     if (process.env.NODE_ENV === 'production' && !emailConfigured()) return res.status(503).json({ message: 'Email verification is temporarily unavailable.' });
@@ -64,14 +65,19 @@ router.post('/register', authLimiter, async (req, res, next) => {
     const pending = await PendingRegistration.findOne({ email });
     if (pending?.lastSentAt && now - pending.lastSentAt < 60_000) return res.status(429).json({ message: 'Please wait one minute before requesting another code.' });
     await PendingRegistration.findOneAndUpdate({ email }, {
-      name, email, passwordHash: await bcrypt.hash(password, 12), codeHash: codeHash(code),
-      codeExpiresAt: new Date(now.getTime() + 10 * 60_000), expiresAt: new Date(now.getTime() + 30 * 60_000),
+      name, email, passwordHash: await bcrypt.hash(password, 12), codeHash: codeHash(code), requestedRole,
+      approvalStatus: requestedRole === 'staff' ? 'pending' : 'not_required', emailVerifiedAt: undefined,
+      codeExpiresAt: new Date(now.getTime() + 10 * 60_000), expiresAt: new Date(now.getTime() + (requestedRole === 'staff' ? 14 * 24 * 60 * 60_000 : 30 * 60_000)),
       attempts: 0, lastSentAt: now,
     }, { upsert: true, runValidators: true });
     await sendOtpEmail({ to: email, name, code, purpose: 'verify' });
-    return res.status(202).json(devCode({ message: 'Enter the six-digit code sent to your email to finish registration.', email }, code));
+    const accountLabel = requestedRole === 'staff' ? 'staff application' : 'student registration';
+    return res.status(202).json(devCode({ message: `Enter the six-digit code sent to your email to verify your ${accountLabel}.`, email, requestedRole }, code));
   } catch (error) { next(error); }
-});
+}
+
+router.post('/register', authLimiter, (req, res, next) => beginRegistration(req, res, next, 'user'));
+router.post('/staff-register', authLimiter, (req, res, next) => beginRegistration(req, res, next, 'staff'));
 
 router.post('/verify-email', authLimiter, async (req, res, next) => {
   try {
@@ -86,7 +92,17 @@ router.post('/verify-email', authLimiter, async (req, res, next) => {
         await PendingRegistration.updateOne({ _id: pending._id }, { $inc: { attempts: 1 } });
         return res.status(400).json({ message: 'That verification code is invalid.' });
       }
-      user = await User.create({ name: pending.name, email: pending.email, passwordHash: pending.passwordHash, emailVerified: true });
+      if (pending.requestedRole === 'staff') {
+        pending.emailVerifiedAt = new Date();
+        pending.codeHash = codeHash(crypto.randomUUID());
+        pending.codeExpiresAt = new Date(0);
+        pending.attempts = 0;
+        pending.expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60_000);
+        await pending.save();
+        await recordAudit(req, 'staff.application_verified', { targetType: 'pending_registration', targetId: pending._id, details: pending.email });
+        return res.json({ pendingApproval: true, email: pending.email, message: 'Email verified. Your staff application is awaiting administrator approval.' });
+      }
+      user = await User.create({ name: pending.name, email: pending.email, passwordHash: pending.passwordHash, emailVerified: true, role: 'user' });
       await PendingRegistration.deleteOne({ _id: pending._id });
       req.user = user;
       await recordAudit(req, 'user.registered', { targetType: 'user', targetId: user._id });
@@ -135,6 +151,10 @@ router.post('/login', authLimiter, async (req, res, next) => {
     const password = typeof req.body.password === 'string' ? req.body.password : '';
     if (!validEmail(email) || password.length > 128) return res.status(400).json({ message: 'Enter a valid email and password.' });
     const user = await User.findOne({ email, isGuest: { $ne: true } }).select('+passwordHash +failedLoginAttempts +loginLockedUntil +loginLockLevel');
+    if (!user) {
+      const staffApplication = await PendingRegistration.findOne({ email, requestedRole: 'staff', emailVerifiedAt: { $exists: true } }).select('+passwordHash');
+      if (staffApplication && await bcrypt.compare(password, staffApplication.passwordHash)) return res.status(403).json({ code: 'STAFF_APPROVAL_PENDING', message: 'Your verified staff application is still awaiting administrator approval.' });
+    }
     if (user?.loginLockedUntil && user.loginLockedUntil > new Date()) return lockResponse(res, user.loginLockedUntil);
     const passwordMatches = user ? await bcrypt.compare(password, user.passwordHash) : false;
     if (!user || !passwordMatches) {
