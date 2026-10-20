@@ -9,6 +9,8 @@ const userSchema = new mongoose.Schema({
   verificationCodeHash: { type: String, select: false },
   verificationCodeExpires: { type: Date, select: false },
   isActive: { type: Boolean, default: true },
+  suspensionReason: { type: String, trim: true, maxlength: 500, default: '' },
+  suspendedAt: { type: Date },
   failedLoginAttempts: { type: Number, default: 0, select: false },
   loginLockedUntil: { type: Date, select: false },
   loginLockLevel: { type: Number, default: 0, select: false },
