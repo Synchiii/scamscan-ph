@@ -49,10 +49,11 @@ export function sendPasswordResetEmail({ to, name, resetUrl }) {
 export function sendOtpEmail({ to, name, code, purpose }) {
   const isVerification = purpose === 'verify';
   const isPasswordChange = purpose === 'change';
+  const isProfileChange = purpose === 'profile';
   return sendEmail({
     to,
-    subject: isVerification ? 'Verify your ScamScan email' : isPasswordChange ? 'Confirm your ScamScan password change' : 'Reset your ScamScan password',
-    text: `Hello ${name},\n\nYour ScamScan ${isVerification ? 'email verification' : isPasswordChange ? 'password change confirmation' : 'password reset'} code is: ${code}\n\nIt expires in 10 minutes. Never share this code with anyone.`,
+    subject: isVerification ? 'Verify your ScamScan email' : isPasswordChange ? 'Confirm your ScamScan password change' : isProfileChange ? 'Confirm your ScamScan name change' : 'Reset your ScamScan password',
+    text: `Hello ${name},\n\nYour ScamScan ${isVerification ? 'email verification' : isPasswordChange ? 'password change confirmation' : isProfileChange ? 'name change confirmation' : 'password reset'} code is: ${code}\n\nIt expires in 10 minutes. Never share this code with anyone.`,
   });
 }
 
