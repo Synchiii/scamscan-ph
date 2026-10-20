@@ -24,6 +24,11 @@ const userSchema = new mongoose.Schema({
   passwordChangeCodeExpires: { type: Date, select: false },
   passwordChangeCodeAttempts: { type: Number, default: 0, select: false },
   passwordChangeCodeLastSentAt: { type: Date, select: false },
+  profileChangeCodeHash: { type: String, select: false },
+  profileChangeCodeExpires: { type: Date, select: false },
+  profileChangeCodeAttempts: { type: Number, default: 0, select: false },
+  profileChangeCodeLastSentAt: { type: Date, select: false },
+  pendingProfileName: { type: String, trim: true, minlength: 2, maxlength: 80, select: false },
 }, { timestamps: true });
 
 export default mongoose.model('User', userSchema);
