@@ -217,11 +217,12 @@ test('management pagination clamps pages and keeps filtering safe and case-insen
 });
 test('Staff and Admin dashboards show role-appropriate tools, with no introductory headers', () => {
   const destinations = [];
-  const staff = operations.StaffOverview({ data: { users: 12, contents: 8, openSupport: 2 }, go: (page) => destinations.push(page), refresh: () => {} });
+  const staff = operations.StaffOverview({ data: { users: 12, contents: 8, openSupport: 2, unclaimedChats: 3 }, go: (page) => destinations.push(page), refresh: () => {} });
   for (const node of elements(staff, (node) => node.type === consoleUI.ConsoleAction)) node.props.onClick();
   assert.deepEqual(destinations, ['adminUsers', 'contents', 'adminSupport', 'chat', 'profile', 'settings']);
   const staffHtml = renderToStaticMarkup(staff);
   assert.ok(!staffHtml.includes('Maintenance')); assert.ok(!staffHtml.includes('CyberShield'));
+  assert.match(staffHtml, /Unclaimed chats/); assert.match(staffHtml, />3</);
   const adminHtml = renderToStaticMarkup(React.createElement(management.AdminOverview, { data: { accounts: 15, staff: 3, verified: 12, reports: 22, openSupport: 2, latestAudit: [] }, go: () => {}, refresh: () => {} }));
   for (const html of [staffHtml, adminHtml]) { assert.match(html, /<h1 class="visually-hidden">/); assert.ok(!html.includes('class="page-head"')); assert.ok(!html.includes('Hello,')); }
   assert.match(adminHtml, /Report review/); assert.match(adminHtml, /Maintenance/); assert.match(adminHtml, /Audit log/);
@@ -284,6 +285,7 @@ test('audit and account records paginate and keep security/audit tabs exclusive 
   const logs = Array.from({ length: 21 }, (_, index) => ({ _id: 'log-' + index, action: 'user.action_' + index, actorName: 'Member', actorRole: 'user', createdAt: '2026-10-07T03:00:00Z' }));
   const html = renderToStaticMarkup(React.createElement(management.AuditLogPage, { logs, refresh: () => {} }));
   assert.match(html, /Page 1 of 2/); assert.ok(!html.includes('action_20'));
+  assert.ok(!html.includes('user.action_')); assert.match(html, /User action 0/);
   const details = { user: managerAccount(0), analyses: [report(1)], support: [], audit: logs, events: [] };
   for (const admin of [false, true]) {
     const output = renderToStaticMarkup(React.createElement(management.AccountDetails, { details, admin, back: () => {}, openReport: () => {} }));
