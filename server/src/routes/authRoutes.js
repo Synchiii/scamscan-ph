@@ -9,6 +9,7 @@ import { clearSessionCookie, setSessionCookie } from '../utils/auth.js';
 import { sendOtpEmail, emailConfigured } from '../services/emailService.js';
 import { recordAudit } from '../services/auditService.js';
 import { validEmail, validPassword, validOtp, passwordHelp } from '../utils/validation.js';
+import { normalizePersonName, validPersonName, personNameHelp } from '../utils/personName.js';
 import SiteSettings from '../models/SiteSettings.js';
 
 const router = Router();
@@ -50,10 +51,10 @@ function lockResponse(res, until, lockMinutes) {
 
 router.post('/register', authLimiter, async (req, res, next) => {
   try {
-    const name = String(req.body.name || '').trim();
+    const name = normalizePersonName(req.body.name);
     const email = String(req.body.email || '').trim().toLowerCase();
     const password = req.body.password;
-    if (name.length < 2 || name.length > 80) return res.status(400).json({ message: 'Enter a name between 2 and 80 characters.' });
+    if (!validPersonName(name)) return res.status(400).json({ message: personNameHelp });
     if (!validEmail(email)) return res.status(400).json({ message: 'Enter a valid email address.' });
     if (!validPassword(password)) return res.status(400).json({ message: passwordHelp });
     if (await User.exists({ email })) return res.status(409).json({ message: 'An account already uses that email address.' });
@@ -175,8 +176,8 @@ router.get('/me', requireAuth, (req, res) => res.json({ user: publicUser(req.use
 
 router.patch('/profile', requireAuth, async (req, res, next) => {
   try {
-    const name = String(req.body.name || '').trim();
-    if (name.length < 2 || name.length > 80) return res.status(400).json({ message: 'Enter a name between 2 and 80 characters.' });
+    const name = normalizePersonName(req.body.name);
+    if (!validPersonName(name)) return res.status(400).json({ message: personNameHelp });
     req.user.name = name;
     await req.user.save();
     await recordAudit(req, 'user.profile_updated', { targetType: 'user', targetId: req.user._id });
