@@ -12,7 +12,7 @@ test('scam scorer flags OTP, prize, urgency and URL', () => {
   assert.ok(result.score >= 80);
   assert.ok(result.flags.includes('Requests a password, OTP, PIN, or verification code'));
   assert.equal(result.confidenceLevel, 'High');
-  assert.equal(result.analysisVersion, '2.2.0');
+  assert.equal(result.analysisVersion, '2.3.0');
   assert.equal(result.urls[0].verdict, 'Suspicious');
 });
 
@@ -65,6 +65,17 @@ test('detector rates a suspicious account URL above a routine HTTPS link', () =>
 test('ordinary security guidance does not become an OTP disclosure request', () => {
   const result = scoreScamMessage('Please do not share your OTP with anyone.');
   assert.ok(!result.flags.includes('Requests a password, OTP, PIN, or verification code'));
+});
+
+test('conversational Tagalog OTP request is Low Risk — Monitor with separate-channel verification guidance', () => {
+  const result = scoreScamMessage('Teh, pwedeng makahingi OTP at number ng GCash mo? Ayaw kasing ma-open nung sakin.');
+  assert.equal(result.score, 34);
+  assert.equal(result.level, 'Low Risk');
+  assert.ok(result.flags.includes('Requests a password, OTP, PIN, or verification code'));
+  assert.match(result.recommendation, /Monitor the conversation/i);
+  assert.match(result.recommendation, /separate trusted channel/i);
+  assert.match(result.recommendation, /Messenger/i);
+  assert.match(result.recommendation, /do not share the OTP/i);
 });
 
 test('context combinations increase risk without claiming certainty', () => {
