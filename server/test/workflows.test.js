@@ -8,6 +8,7 @@ import SiteSettings from '../src/models/SiteSettings.js';
 import Content from '../src/models/Content.js';
 import AuditLog from '../src/models/AuditLog.js';
 import SupportMessage from '../src/models/SupportMessage.js';
+import ChatThread from '../src/models/ChatThread.js';
 import { COOKIE_NAME, signSession, setSessionCookie, verifySession } from '../src/utils/auth.js';
 
 let server, base, accounts, settings, contents, tickets;
@@ -39,6 +40,7 @@ beforeEach(() => {
   mock.method(User, 'countDocuments', async () => accounts.filter((account) => account.role === 'user' && !account.isGuest).length);
   mock.method(Content, 'countDocuments', async () => contents.length);
   mock.method(SupportMessage, 'countDocuments', async () => tickets.filter((ticket) => ticket.status !== 'resolved').length);
+  mock.method(ChatThread, 'countDocuments', async () => 3);
   mock.method(AuditLog, 'create', async (entry) => entry);
   mock.method(Content, 'find', (filter = {}) => query(contents.filter((item) => !filter.status || item.status === filter.status)));
   mock.method(Content, 'create', async (entry) => { const content = { ...entry, _id: '500000000000000000000001' }; contents.push(content); return content; });
@@ -189,9 +191,10 @@ test('removed commerce APIs cannot serve products or process orders for any role
     }
   }
 });
-test('staff overview contains member, content, and support metrics', async () => {
+test('staff overview contains member, content, support, and unclaimed chat metrics', async () => {
   const response = await request('/management/overview', 'staff');
   assert.equal(response.status, 200);
-  assert.deepEqual(Object.keys(response.body).sort(), ['contents', 'openSupport', 'users']);
+  assert.deepEqual(Object.keys(response.body).sort(), ['contents', 'openSupport', 'unclaimedChats', 'users']);
   assert.equal(response.body.users, 1);
+  assert.equal(response.body.unclaimedChats, 3);
 });
