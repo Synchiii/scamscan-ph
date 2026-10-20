@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import UiIcon from './UiIcon';
 import { RISK_LEVELS, riskClass, riskLabel } from './risk';
 import { ConsolePage, ConsolePanel, ConsoleMetrics, ConsoleAction, ConsoleSearch, ConsolePager, ConsoleChip, ConsoleEmpty, ConsoleBarList, FixedRows, pageSlice, textMatches, displayRole, dateLabel, initials } from './ManagementUI';
+import { normalizePersonName, personNameIssue } from './personName';
 
 export function AdminOverview({ data, go, refresh, busy }) {
   const tasks = [['adminReports', 'shield', 'Report review', 'Check and correct saved assessments.'], ['adminUsers', 'users', 'Accounts', 'Manage details, roles and account access.'], ['adminSupport', 'mail', 'Help inbox', 'Reply to private member requests.'], ['adminAudit', 'clock', 'Audit log', 'Review recorded platform activity.']];
@@ -29,12 +30,15 @@ export function AccountEditor({ member, allowRoles, busy, onChange, onClose, cur
   useEffect(() => { firstInput.current?.focus({ preventScroll: true }); }, [member._id]);
   async function save(event) {
     event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget));
-    const saved = await onChange(member._id, { name: values.name, ...(allowRoles && values.role ? { role: values.role } : {}) });
+    const issue = personNameIssue(values.name);
+    firstInput.current?.setCustomValidity(issue);
+    if (issue) return firstInput.current?.reportValidity();
+    const saved = await onChange(member._id, { name: normalizePersonName(values.name), ...(allowRoles && values.role ? { role: values.role } : {}) });
     if (saved) onClose();
   }
   const self = String(member._id) === String(currentUserId);
   const administratorAccount = member.role === 'admin';
-  return <ConsolePanel title="Edit account" detail={member.email} icon="edit" className="console-account-editor" action={<button type="button" className="console-icon-button" disabled={busy} onClick={onClose} aria-label="Close account editor"><UiIcon name="close" size={18} /></button>}><form className="console-form" onSubmit={save}><div className="console-form-grid"><label>Name<input ref={firstInput} name="name" defaultValue={member.name} minLength="2" maxLength="80" required disabled={busy} /></label><label>Email<input type="email" value={member.email} readOnly aria-readonly="true" title="Email cannot be changed" /></label>{allowRoles && !administratorAccount && <label>Role<select name="role" defaultValue={member.role} disabled={busy}><option value="user">Member</option><option value="staff">Staff</option></select></label>}</div><div className="console-form-actions"><small>{administratorAccount ? 'Administrator roles are protected and cannot be assigned or changed here.' : 'Email is fixed. Only Member and Staff roles can be assigned here.'}</small><button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button></div></form></ConsolePanel>;
+  return <ConsolePanel title="Edit account" detail={member.email} icon="edit" className="console-account-editor" action={<button type="button" className="console-icon-button" disabled={busy} onClick={onClose} aria-label="Close account editor"><UiIcon name="close" size={18} /></button>}><form className="console-form" onSubmit={save}><div className="console-form-grid"><label>Full name<input ref={firstInput} name="name" defaultValue={member.name} minLength="2" maxLength="80" required disabled={busy} title="Letters, spaces, periods, apostrophes, and hyphens only" onInput={(event) => event.currentTarget.setCustomValidity('')} /></label><label>Email<input type="email" value={member.email} readOnly aria-readonly="true" title="Email cannot be changed" /></label>{allowRoles && !administratorAccount && <label>Role<select name="role" defaultValue={member.role} disabled={busy}><option value="user">Member</option><option value="staff">Staff</option></select></label>}</div><div className="console-form-actions"><small>{administratorAccount ? 'Administrator roles are protected and cannot be assigned or changed here. Names cannot contain numbers.' : 'Email is fixed. Names cannot contain numbers; only Member and Staff roles can be assigned here.'}</small><button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button></div></form></ConsolePanel>;
 }
 export function UserManagement({ users, busy, onChange, onDelete, onDetails, allowRoles, currentUserId, loading = false, refresh }) {
   const [search, setSearch] = useState(''); const [role, setRole] = useState('all'); const [status, setStatus] = useState('all'); const [requestedPage, setPage] = useState(1); const [editId, setEditId] = useState(null); const [suspendId, setSuspendId] = useState(null);
