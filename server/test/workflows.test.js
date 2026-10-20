@@ -67,10 +67,26 @@ test('staff can manage members but cannot assign roles or modify administrators'
   assert.deepEqual(listing.body.users.map((account) => account.role), ['user']);
   assert.equal((await request('/admin/users/' + ids.admin, 'staff', 'PATCH', { name: 'Changed admin' })).status, 404);
   assert.equal((await request('/admin/users/' + ids.user, 'staff', 'PATCH', { role: 'admin' })).status, 403);
-  const update = await request('/admin/users/' + ids.user, 'staff', 'PATCH', { name: 'Updated member', isActive: false });
+  const update = await request('/admin/users/' + ids.user, 'staff', 'PATCH', { name: 'Updated member', isActive: false, suspensionReason: 'Repeated violations of the community safety rules.' });
   assert.equal(update.status, 200);
   assert.equal(update.body.user.name, 'Updated member');
   assert.equal(update.body.user.isActive, false);
+  assert.equal(update.body.user.suspensionReason, 'Repeated violations of the community safety rules.');
+});
+test('account email is immutable and suspension requires a visible reason', async () => {
+  assert.equal((await request('/admin/users/' + ids.user, 'admin', 'PATCH', { email: 'changed@example.com' })).status, 400);
+  assert.equal((await request('/admin/users/' + ids.user, 'admin', 'PATCH', { isActive: false })).status, 400);
+  const suspended = await request('/admin/users/' + ids.user, 'admin', 'PATCH', { isActive: false, suspensionReason: 'Suspicious activity requires an administrator review.' });
+  assert.equal(suspended.status, 200);
+  assert.equal(suspended.body.user.suspensionReason, 'Suspicious activity requires an administrator review.');
+  const login = await request('/auth/login', null, 'POST', { email: 'user@example.com', password: 'Study123' });
+  assert.equal(login.status, 403);
+  assert.equal(login.body.code, 'ACCOUNT_SUSPENDED');
+  assert.match(login.body.message, /Suspicious activity/);
+  const session = await request('/auth/me', 'user');
+  assert.equal(session.status, 401);
+  assert.equal(session.body.code, 'ACCOUNT_SUSPENDED');
+  assert.match(session.body.message, /Suspicious activity/);
 });
 test('admin can promote a member to staff but cannot remove their own admin access', async () => {
   assert.equal((await request('/admin/users/' + ids.user, 'admin', 'PATCH', { role: 'staff' })).body.user.role, 'staff');
