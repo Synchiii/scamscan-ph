@@ -13,6 +13,7 @@ import { sendAccountSuspensionEmail, sendSupportReplyEmail } from '../services/e
 
 import SiteSettings from '../models/SiteSettings.js';
 import { registeredAccounts, managedAccountQuery, canSetRole } from '../utils/access.js';
+import { normalizePersonName, validPersonName, personNameHelp } from '../utils/personName.js';
 
 const router = Router();
 router.use(requireAuth, requireStaff);
@@ -60,8 +61,8 @@ router.patch('/users/:id', async (req, res, next) => {
     if (!target) return res.status(404).json({ message: 'Account not found.' });
     const updates = {};
     if (typeof req.body.name === 'string') {
-      const name = req.body.name.trim();
-      if (name.length < 2 || name.length > 80) return res.status(400).json({ message: 'Name must be between 2 and 80 characters.' });
+      const name = normalizePersonName(req.body.name);
+      if (!validPersonName(name)) return res.status(400).json({ message: personNameHelp });
       updates.name = name;
     }
     if (req.body.email !== undefined) return res.status(400).json({ message: 'Account email addresses are fixed and cannot be changed here.' });
