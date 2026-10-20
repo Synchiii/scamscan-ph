@@ -2,6 +2,7 @@ import { Router } from 'express';
 import Content from '../models/Content.js';
 import User from '../models/User.js';
 import SupportMessage from '../models/SupportMessage.js';
+import ChatThread from '../models/ChatThread.js';
 import { requireAuth, requireStaff } from '../middleware/auth.js';
 import { recordAudit } from '../services/auditService.js';
 
@@ -15,12 +16,13 @@ function contentInput(body) {
 }
 router.get('/overview', async (_req, res, next) => {
   try {
-    const [users, contents, openSupport] = await Promise.all([
+    const [users, contents, openSupport, unclaimedChats] = await Promise.all([
       User.countDocuments({ role: 'user', isGuest: { $ne: true } }),
       Content.countDocuments(),
       SupportMessage.countDocuments({ status: { $ne: 'resolved' } }),
+      ChatThread.countDocuments({ assignedStaff: null, lastMessagePreview: { $ne: '' } }),
     ]);
-    res.json({ users, contents, openSupport });
+    res.json({ users, contents, openSupport, unclaimedChats });
   } catch (error) { next(error); }
 });
 router.get('/content', async (_req, res, next) => {
