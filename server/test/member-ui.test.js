@@ -250,11 +250,11 @@ test('account management has ten stable row slots and self-protection while pres
   assert.equal((empty.match(/class="console-placeholder"/g) || []).length, 10);
   assert.ok(!empty.includes('Filter account role'));
 });
-test('account editor retains validated name/email inputs and only Admin can edit roles', () => {
+test('account editor keeps email read-only and only Admin can edit roles', () => {
   for (const allowRoles of [false, true]) {
     const html = renderToStaticMarkup(React.createElement(management.AccountEditor, { member: managerAccount(1), allowRoles, busy: false, onChange: () => {}, onClose: () => {} }));
     assert.match(html, /name="name"/); assert.match(html, /minlength="2" maxlength="80"/i);
-    assert.match(html, /name="email" type="email"/); assert.equal(html.includes('name="role"'), allowRoles);
+    assert.match(html, /type="email"[^>]*readonly=""/i); assert.ok(!html.includes('name="email"')); assert.equal(html.includes('name="role"'), allowRoles);
     assert.match(html, /Save changes/);
   }
 });
