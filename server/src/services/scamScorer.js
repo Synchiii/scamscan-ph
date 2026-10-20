@@ -1,7 +1,7 @@
-const ANALYSIS_VERSION = '2.2.0';
+const ANALYSIS_VERSION = '2.2.1';
 
 const TEXT_SIGNALS = [
-  { category: 'credentials', pattern: /\b(send|share|give|provide|enter|submit|ibigay|ipadala|isend|i-send)\b.{0,60}\b(otp|one[- ]?time password|pin|password|cvv|verification code)\b|\b(otp|one[- ]?time password|pin|password|cvv|verification code)\b.{0,45}\b(send|share|give|provide|enter|submit|ibigay|ipadala)\b/i, points: 34, flag: 'Requests a password, OTP, PIN, or verification code' },
+  { category: 'credentials', pattern: /\b(send|share|give|provide|enter|submit|ask|request|need|ibigay|ipadala|isend|i-send|hingi|hingin|humingi|manghingi|makahingi|pahingi|kailangan)\b.{0,60}\b(otp|one[- ]?time password|pin|password|cvv|verification code)\b|\b(otp|one[- ]?time password|pin|password|cvv|verification code)\b.{0,45}\b(send|share|give|provide|enter|submit|ask|request|ibigay|ipadala|isend|i-send|hingi|hingin|humingi|manghingi|makahingi|pahingi)\b/i, points: 34, flag: 'Requests a password, OTP, PIN, or verification code' },
   { category: 'payment', pattern: /\b(send|transfer|pay|payment|bayad|bayaran(?:g)?|magbayad|cash[ -]?in|cash[ -]?out|deposit|remit)\b.{0,65}\b(money|pera|gcash|maya|bank|account|fee|bayad|payment|crypto|usdt)\b|\b(gcash|maya|bank|crypto|usdt)\b.{0,65}\b(send|transfer|pay|bayad|bayaran|magbayad|deposit)\b|\b(first|initial|advance|processing|delivery)\s+(payment|pay|fee)\b/i, points: 23, flag: 'Requests a money transfer or payment' },
   { category: 'urgency', pattern: /\b(act now|immediately|urgent|urgently|today only|last chance|verify now|within \d+ (?:minutes?|hours?)|asap|ngayon na|agad|mawawala|ma-disable|blocked|suspended|limited time)\b/i, points: 13, flag: 'Uses urgency or account-pressure language' },
   { category: 'reward', pattern: /\b(congratulations|congrats|nanalo|winner|won|prize|premyo|claim your reward|cash reward|free gift)\b|₱\s?\d[\d,]*/i, points: 18, flag: 'Promises a prize, reward, or unexpected money' },
@@ -32,9 +32,10 @@ export function classifyRisk(score) {
   return 'Safe';
 }
 
-function recommendationFor(score) {
+function recommendationFor(score, categories = new Set()) {
   if (score >= 60) return 'Do not open links, send money, install remote-access apps, or share passwords and codes. Verify through the organization’s official app, website, or published contact number.';
   if (score >= 40) return 'Pause before responding. Independently verify the sender, request, and destination domain through an official channel.';
+  if (score >= 20 && categories.has('credentials')) return 'Monitor the conversation and do not share the OTP, PIN, password, or verification code—even if the sender appears familiar. Confirm the sender and request through a separate trusted channel, such as a known Messenger account or a phone number you already have, instead of using contact details supplied in the message.';
   if (score >= 20) return 'Some suspicious indicators were detected, but the evidence is not strong enough for a Warning classification. Monitor the conversation, verify the sender through an official channel, and do not share passwords, OTPs, or payment details.';
   return 'No strong warning signs were detected in the submitted content. This does not prove it is safe; independently verify unexpected requests.';
 }
@@ -125,7 +126,7 @@ export function scoreScamMessage(message) {
   const strongest = Math.max(0, ...signals.map((signal) => signal.points));
   const confidence = clamp(Math.round(30 + Math.min(signals.length * 6, 30) + Math.min(strongest, 25) + (urls.length ? 8 : 0) - (input.length < 25 ? 8 : 0)), 20, 95);
   const confidenceLevel = confidence >= 75 ? 'High' : confidence >= 50 ? 'Moderate' : 'Low';
-  const recommendation = recommendationFor(score);
+  const recommendation = recommendationFor(score, categories);
   const explanation = flags.length
     ? `${flags.length} observable signal${flags.length === 1 ? '' : 's'} across ${categories.size} evidence categor${categories.size === 1 ? 'y' : 'ies'} produced this risk estimate. Confidence reflects evidence strength, not certainty of fraud.`
     : 'No strong contextual or URL-structure warning was detected. Confidence is limited because new or previously unknown scams may not match known patterns.';
@@ -159,5 +160,5 @@ export function applyUrlReputation(result, reputation) {
   const explanation = confirmedThreats
     ? `${result.explanation} ${confirmedThreats} submitted link${confirmedThreats === 1 ? ' was' : 's were'} also flagged by an external security provider.`
     : `${result.explanation} External reputation checks found no listed threat, but that does not prove a link is safe.`;
-  return { ...result, score, level, confidence, confidenceLevel, flags, signals, urls, explanation, recommendation: recommendationFor(score), externalChecks: { configured: true, checked: reputation.checked, status: confirmedThreats ? 'Threat match found' : 'Completed' } };
+  return { ...result, score, level, confidence, confidenceLevel, flags, signals, urls, explanation, recommendation: recommendationFor(score, new Set(signals.map((signal) => signal.category))), externalChecks: { configured: true, checked: reputation.checked, status: confirmedThreats ? 'Threat match found' : 'Completed' } };
 }
