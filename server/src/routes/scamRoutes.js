@@ -57,7 +57,7 @@ router.get('/analytics', requireAuth, requireAdmin, async (_req, res, next) => {
     const visibleUsers = await User.distinct('_id', registeredAccounts);
     const visible = { user: { $in: visibleUsers } };
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const [total, byLevel, byLanguage, average, highRisk, rawFlags, trend, byAccountType, reviewed] = await Promise.all([
+    const [total, byLevel, byLanguage, average, highRisk, rawFlags, trend, reviewed] = await Promise.all([
       MessageAnalysis.countDocuments(visible),
       MessageAnalysis.aggregate([{ $match: visible }, { $group: { _id: '$level', count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
       MessageAnalysis.aggregate([{ $match: visible }, { $group: { _id: '$language', count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
@@ -65,11 +65,10 @@ router.get('/analytics', requireAuth, requireAdmin, async (_req, res, next) => {
       MessageAnalysis.countDocuments({ ...visible, level: { $in: ['High', 'Scam'] } }),
       MessageAnalysis.aggregate([{ $match: visible }, { $unwind: '$flags' }, { $group: { _id: '$flags', count: { $sum: 1 } } }, { $sort: { count: -1 } }, { $limit: 8 }]),
       MessageAnalysis.aggregate([{ $match: visible }, { $match: { createdAt: { $gte: since } } }, { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } }, { $sort: { _id: 1 } }]),
-      MessageAnalysis.aggregate([{ $match: visible }, { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: 'account' } }, { $unwind: { path: '$account', preserveNullAndEmptyArrays: true } }, { $group: { _id: { $ifNull: ['$account.role', 'user'] }, count: { $sum: 1 } } }]),
       MessageAnalysis.countDocuments({ ...visible, 'adminReview.reviewedAt': { $exists: true } }),
     ]);
     const scams = await MessageAnalysis.countDocuments({ ...visible, level: 'Scam' });
-    res.json({ total, scams, reviewed, averageScore: Math.round(average[0]?.value || 0), highRiskRate: total ? Math.round((highRisk / total) * 100) : 0, byLevel, byLanguage, commonFlags: rawFlags, trend, byAccountType });
+    res.json({ total, scams, reviewed, averageScore: Math.round(average[0]?.value || 0), highRiskRate: total ? Math.round((highRisk / total) * 100) : 0, byLevel, byLanguage, commonFlags: rawFlags, trend });
   } catch (error) { next(error); }
 });
 
