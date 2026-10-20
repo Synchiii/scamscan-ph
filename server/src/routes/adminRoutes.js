@@ -9,20 +9,19 @@ import { chatMediaStore } from '../services/chatMediaStore.js';
 import AuditLog from '../models/AuditLog.js';
 import { requireAuth, requireAdmin, requireStaff } from '../middleware/auth.js';
 import { recordAudit } from '../services/auditService.js';
-import { sendSupportReplyEmail } from '../services/emailService.js';
+import { sendAccountSuspensionEmail, sendSupportReplyEmail } from '../services/emailService.js';
 
 import SiteSettings from '../models/SiteSettings.js';
 import { registeredAccounts, managedAccountQuery, canSetRole } from '../utils/access.js';
 
 const router = Router();
 router.use(requireAuth, requireStaff);
-const publicUser = (user) => ({ id: user._id, name: user.name, email: user.email, role: user.role, emailVerified: user.emailVerified, isActive: user.isActive, preferences: user.preferences, createdAt: user.createdAt, updatedAt: user.updatedAt });
+const publicUser = (user) => ({ id: user._id, name: user.name, email: user.email, role: user.role, emailVerified: user.emailVerified, isActive: user.isActive, suspensionReason: user.suspensionReason || '', suspendedAt: user.suspendedAt, preferences: user.preferences, createdAt: user.createdAt, updatedAt: user.updatedAt });
 async function supportScope(actor) {
   if (actor.role === 'admin') return {};
   const members = await User.find(managedAccountQuery(actor)).select('_id').lean();
   return { from: { $in: members.map((member) => member._id) } };
 }
-const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 router.get('/overview', requireAdmin, async (_req, res, next) => {
   try {
@@ -37,14 +36,14 @@ router.get('/overview', requireAdmin, async (_req, res, next) => {
 
 router.get('/users', async (req, res, next) => {
   try {
-    const users = await User.find(managedAccountQuery(req.user)).select('name email role emailVerified isActive createdAt updatedAt').sort({ createdAt: -1 }).lean();
+    const users = await User.find(managedAccountQuery(req.user)).select('name email role emailVerified isActive suspensionReason suspendedAt createdAt updatedAt').sort({ createdAt: -1 }).lean();
     res.json({ users: users.map((user) => ({ ...user, id: user._id })) });
   } catch (error) { next(error); }
 });
 
 router.get('/users/:id/details', async (req, res, next) => {
   try {
-    const user = await User.findOne(managedAccountQuery(req.user, req.params.id)).select('name email role emailVerified isActive preferences createdAt updatedAt').lean();
+    const user = await User.findOne(managedAccountQuery(req.user, req.params.id)).select('name email role emailVerified isActive suspensionReason suspendedAt preferences createdAt updatedAt').lean();
     if (!user) return res.status(404).json({ message: 'Account not found.' });
     const [analyses, support, audit] = await Promise.all([
       MessageAnalysis.find({ user: user._id }).sort({ createdAt: -1 }).limit(100).lean(),
@@ -65,23 +64,34 @@ router.patch('/users/:id', async (req, res, next) => {
       if (name.length < 2 || name.length > 80) return res.status(400).json({ message: 'Name must be between 2 and 80 characters.' });
       updates.name = name;
     }
-    if (typeof req.body.email === 'string') {
-      const email = req.body.email.trim().toLowerCase();
-      if (!validEmail(email)) return res.status(400).json({ message: 'Enter a valid email address.' });
-      if (await User.exists({ email, _id: { $ne: target._id } })) return res.status(409).json({ message: 'Another account already uses that email.' });
-      updates.email = email;
+    if (req.body.email !== undefined) return res.status(400).json({ message: 'Account email addresses are fixed and cannot be changed here.' });
+    if (typeof req.body.isActive === 'boolean') {
+      updates.isActive = req.body.isActive;
+      if (!req.body.isActive) {
+        const reason = String(req.body.suspensionReason || '').trim();
+        if (reason.length < 10 || reason.length > 500) return res.status(400).json({ message: 'Enter a suspension reason between 10 and 500 characters.' });
+        updates.suspensionReason = reason;
+        updates.suspendedAt = new Date();
+      } else {
+        updates.suspensionReason = '';
+        updates.suspendedAt = undefined;
+      }
     }
-    if (typeof req.body.isActive === 'boolean') updates.isActive = req.body.isActive;
     if (req.body.role !== undefined) {
       if (!canSetRole(req.user, req.body.role)) return res.status(403).json({ message: 'Only administrators can assign account roles.' });
       updates.role = req.body.role;
     }
     if (!Object.keys(updates).length) return res.status(400).json({ message: 'Enter an account update to save.' });
     if (target._id.toString() === req.user._id.toString() && (updates.isActive === false || (updates.role && updates.role !== 'admin'))) return res.status(400).json({ message: 'You cannot remove your own administrator access.' });
+    const suspendedNow = target.isActive && updates.isActive === false;
     Object.assign(target, updates);
     await target.save();
-    await recordAudit(req, req.user.role + '.account_updated', { targetType: 'user', targetId: target._id, details: Object.keys(updates).join(', ') });
-    res.json({ user: publicUser(target) });
+    const auditDetails = suspendedNow ? `Account suspended. Reason: ${updates.suspensionReason}` : updates.isActive === true ? 'Account reactivated.' : Object.keys(updates).join(', ');
+    await recordAudit(req, req.user.role + '.account_updated', { targetType: 'user', targetId: target._id, details: auditDetails });
+    const notificationEmailed = suspendedNow && target.emailVerified
+      ? await sendAccountSuspensionEmail({ to: target.email, name: target.name, reason: updates.suspensionReason }).catch(() => false)
+      : false;
+    res.json({ user: publicUser(target), notificationEmailed });
   } catch (error) { next(error); }
 });
 
