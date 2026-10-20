@@ -7,9 +7,14 @@ export async function requireAuth(req, res, next) {
     if (!token) return res.status(401).json({ message: 'Please sign in to continue.' });
     const payload = verifySession(token);
     const user = await User.findOne({ _id: payload.sub, isGuest: { $ne: true } });
-    if (!user || !user.isActive || user.role !== payload.role) {
+    if (!user || user.role !== payload.role) {
       clearSessionCookie(res);
       return res.status(401).json({ message: 'Your session is no longer valid.' });
+    }
+    if (!user.isActive) {
+      clearSessionCookie(res);
+      const reason = user.suspensionReason || 'Please contact ScamScan support for more information.';
+      return res.status(401).json({ code: 'ACCOUNT_SUSPENDED', message: `Your account has been suspended. Reason: ${reason}` });
     }
     req.user = user;
     req.sessionExpiresAt = new Date(Math.min(payload.exp * 1000, payload.iat * 1000 + getSessionDurationMs())).toISOString();
