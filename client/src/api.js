@@ -1,4 +1,8 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Keep production requests on the same site as the client. Vercel proxies
+// /api to Render so mobile browsers keep the session cookie.
+const API_URL = import.meta.env.DEV
+  ? (import.meta.env.VITE_API_URL || 'http://localhost:5000/api')
+  : '/api';
 export const SESSION_EXPIRED_EVENT = 'scamscan:session-expired';
 export const MAINTENANCE_EVENT = 'scamscan:maintenance';
 let authGeneration = 0;
