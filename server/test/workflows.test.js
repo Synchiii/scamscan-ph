@@ -35,6 +35,7 @@ beforeEach(() => {
   mock.method(SiteSettings, 'findOne', () => query(settings));
   mock.method(SiteSettings, 'findOneAndUpdate', async (_filter, update) => { Object.assign(settings, update); return settings; });
   mock.method(User, 'findOne', (filter) => query(matchAccount(filter) || null));
+  mock.method(User, 'findById', (id) => query(accounts.find((account) => String(account._id) === String(id)) || null));
   mock.method(User, 'exists', (filter) => Promise.resolve(matchAccount(filter) ? { _id: matchAccount(filter)._id } : null));
   mock.method(User, 'find', (filter) => query(accounts.filter((account) => (!filter.role || account.role === filter.role) && !(filter.isGuest && account.isGuest))));
   mock.method(User, 'countDocuments', async () => accounts.filter((account) => account.role === 'user' && !account.isGuest).length);
@@ -126,11 +127,19 @@ test('staff content publication is visible publicly while drafts remain private'
   assert.equal((await request('/site/content')).body.contents.length, 1);
   assert.equal((await request('/management/content', 'staff', 'POST', { ...body, body: 'short' })).status, 400);
 });
-test('staff can resolve a customer support request and update their profile', async () => {
+test('staff can resolve support and must confirm a profile name change by email code', async () => {
   const response = await request('/admin/support/' + tickets[0]._id, 'staff', 'PATCH', { status: 'resolved' });
   assert.equal(response.status, 200);
   assert.equal(response.body.support.status, 'resolved');
-  const profile = await request('/auth/profile', 'staff', 'PATCH', { name: 'Staff member' });
+  const directProfile = await request('/auth/profile', 'staff', 'PATCH', { code: '000000' });
+  assert.equal(directProfile.status, 400);
+  const codeRequest = await request('/auth/profile/request-code', 'staff', 'POST', { name: 'Staff member' });
+  assert.equal(codeRequest.status, 200);
+  assert.match(codeRequest.body.devOtp, /^\d{6}$/);
+  const wrongCode = await request('/auth/profile', 'staff', 'PATCH', { code: '000000' });
+  assert.equal(wrongCode.status, 400);
+  const profile = await request('/auth/profile', 'staff', 'PATCH', { code: codeRequest.body.devOtp });
+  assert.equal(profile.status, 200);
   assert.equal(profile.body.user.name, 'Staff member');
   assert.equal(profile.body.user.role, 'staff');
   const reply = await request('/admin/support/' + tickets[0]._id + '/reply', 'staff', 'POST', { body: 'Please send the report reference so we can assist.' });
